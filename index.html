@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:;base64,=">
+  </head>
+
+  <body>
+    <script type="module">
+      import { Client } from './muxado.js';
+
+      const session = new Client({
+        serverDomain: "anderspitman.net",
+        token: "yolo",
+      });
+
+      const enc = new TextEncoder('utf8');
+
+      session.onAccept((stream) => {
+        console.log("got stream", stream);
+
+        stream.onData((data) => {
+          console.log("got data", data);
+          console.log(new TextDecoder('utf8').decode(data));
+
+          stream.write(enc.encode("HTTP/1.1 200\nContent-Length: 8\n\nHi there"));
+        });
+      });
+
+    </script>
+  </body>
+</html>
