@@ -1,8 +1,12 @@
 import { WebSocketTransport } from './transport.js';
 
 const FRAME_TYPE_DATA = 0x01;
+const FRAME_TYPE_WNDINC = 0x02;
+const FRAME_TYPE_GOAWAY = 0x00;
 
 const MUXADO_HEADER_SIZE = 8;
+
+//const DEFAULT_WINDOW_SIZE = 256*1024;
 
 class Client {
   constructor(config) {
@@ -37,6 +41,8 @@ class Client {
       console.log("transport.onFrame");
       console.log(frame);
 
+      let stream;
+
       switch (frame.type) {
         case FRAME_TYPE_DATA:
           if (frame.syn) {
@@ -44,14 +50,23 @@ class Client {
             stream.syn = false;
             this._streams[frame.streamId] = stream;
             this._acceptCallback(stream);
+            //stream.emitWindowIncrease(DEFAULT_WINDOW_SIZE);
           }
 
-          const stream = this._streams[frame.streamId];
+          stream = this._streams[frame.streamId];
 
           if (frame.data.length > 0) {
             stream.emitData(frame.data);
           }
 
+          break;
+        case FRAME_TYPE_WNDINC:
+          console.log("FRAME_TYPE_WNDINC");
+          stream = this._streams[frame.streamId];
+          stream.emitWindowIncrease(frame.windowIncrease);
+          break;
+        case FRAME_TYPE_GOAWAY:
+          console.log("FRAME_TYPE_GOAWAY");
           break;
       }
     });
@@ -84,8 +99,16 @@ class Stream {
     this._onDataCallback(data);
   }
 
+  emitWindowIncrease(windowIncrease) {
+    this._onWindowIncreaseCallback(windowIncrease);
+  }
+
   onData(callback) {
     this._onDataCallback = callback;
+  }
+
+  onWindowIncrease(callback) {
+    this._onWindowIncreaseCallback = callback;
   }
 
   write(data) {
@@ -108,14 +131,17 @@ function unpackFrame(frameArray) {
     fin,
     syn,
     streamId,
+    bytesReceived: 0,
   };
 
-  switch (type) {
-    case FRAME_TYPE_DATA:
-      frame.data = new Uint8Array(length);
-      const data = frameArray.slice(8);
-      frame.data.set(data, 0);
-      frame.bytesReceived = data.length;
+  const data = frameArray.slice(MUXADO_HEADER_SIZE);
+  frame.data = new Uint8Array(length);
+  frame.data.set(data, 0);
+  frame.bytesReceived = data.length;
+
+  switch (frame.type) {
+    case FRAME_TYPE_WNDINC:
+      frame.windowIncrease = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
       break;
   }
 

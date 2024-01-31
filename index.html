@@ -17,6 +17,8 @@
 
       const enc = new TextEncoder('utf8');
 
+      let windowSize = 256*1024;
+
       session.onAccept((stream) => {
         console.log("got stream", stream);
 
@@ -24,7 +26,15 @@
           console.log("got data", data);
           console.log(new TextDecoder('utf8').decode(data));
 
-          stream.write(enc.encode("HTTP/1.1 200\nContent-Length: 8\n\nHi there"));
+          const msg = enc.encode("HTTP/1.1 200\nContent-Length: 8\n\nHi there");
+
+          if (msg.length < windowSize) {
+            stream.write(msg);
+          }
+        });
+
+        stream.onWindowIncrease((windowIncrease) => {
+          console.log("windowIncrease", windowIncrease);
         });
       });
 

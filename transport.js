@@ -24,14 +24,22 @@ class WebSocketTransport {
           const frameArray = new Uint8Array(evt.data);
           frame = unpackFrame(frameArray);
 
-          if (frame.bytesReceived !== undefined && frame.bytesReceived < frame.length) {
+          //console.log("frame", JSON.stringify(frame, null, 2));
+
+          if (frame.bytesReceived < frame.length) {
             state = STATE_RECEIVING_FRAME;
+          }
+          else {
+            delete frame.bytesReceived;
+            this.onFrameCb(frame);
           }
 
           break;
         case STATE_RECEIVING_FRAME:
           const arr = new Uint8Array(evt.data);
           frame.data.set(arr, frame.bytesReceived);
+          // TODO: make sure we're properly handling frames split across multiple websocket messages
+          frame.bytesReceived += evt.data.length;
 
           if (frame.data.length === frame.length) {
             state = STATE_WAITING_FOR_FRAME;
