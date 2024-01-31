@@ -17,7 +17,7 @@ class WebSocketTransport {
     });
 
     ws.addEventListener("message", (evt) => {
-      console.log(evt);
+      //console.log(evt);
 
       switch (state) {
         case STATE_WAITING_FOR_FRAME:
@@ -65,12 +65,7 @@ class WebSocketTransport {
   }
 
   writeFrame(frame) {
-    console.log("writeFrame", frame);
-
     const buf = packFrame(frame); 
-
-    console.log(buf);
-
     this._ws.send(buf);
   }
 }

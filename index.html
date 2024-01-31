@@ -17,26 +17,58 @@
 
       const enc = new TextEncoder('utf8');
 
+      const CHUNK_LEN = 32*1024;
+      const NCHUNKS = 1000;
+
+      let chunkStr = "";
+      for (let i = 0; i < CHUNK_LEN; i++ ) {
+        chunkStr += "9";
+      }
+
+      const chunk = enc.encode(chunkStr);
+
+
       let windowSize = 256*1024;
 
-      session.onAccept((stream) => {
-        console.log("got stream", stream);
+      let resolve = null;
 
-        stream.onData((data) => {
-          console.log("got data", data);
+      session.onAccept((stream) => {
+        stream.onData(async (data) => {
           console.log(new TextDecoder('utf8').decode(data));
 
-          const msg = enc.encode("HTTP/1.1 200\nContent-Length: 8\n\nHi there");
+          const headers = enc.encode(`HTTP/1.1 200\nContent-Length: ${NCHUNKS*chunk.length}\n\n`);
 
-          if (msg.length < windowSize) {
-            stream.write(msg);
+          await attemptSend(stream, headers);
+
+          for (let i = 0; i < NCHUNKS; i++) {
+            await attemptSend(stream, chunk);
           }
+
         });
 
         stream.onWindowIncrease((windowIncrease) => {
-          console.log("windowIncrease", windowIncrease);
+          windowSize += windowIncrease;
+          if (resolve) {
+            resolve();
+          }
         });
       });
+
+      async function attemptSend(stream, data) {
+        if (data.length < windowSize) {
+          stream.write(data);
+          windowSize -= data.length;
+          resolve = null;
+        }
+        else {
+          console.log("new promise");
+          await new Promise((newResolve, reject) => {
+            resolve = newResolve;
+          });
+
+          await attemptSend(stream, data);
+        }
+      }
 
     </script>
   </body>

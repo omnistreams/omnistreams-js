@@ -38,8 +38,8 @@ class Client {
     };
 
     this._transport.onFrame((frame) => {
-      console.log("transport.onFrame");
-      console.log(frame);
+      //console.log("transport.onFrame");
+      //console.log(frame);
 
       let stream;
 
@@ -61,7 +61,6 @@ class Client {
 
           break;
         case FRAME_TYPE_WNDINC:
-          console.log("FRAME_TYPE_WNDINC");
           stream = this._streams[frame.streamId];
           stream.emitWindowIncrease(frame.windowIncrease);
           break;
