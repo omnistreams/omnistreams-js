@@ -14,6 +14,10 @@ class Client {
     this._nextStreamId = 1;
     this._streams = {};
 
+    this._acceptPromise = new Promise((resolve, reject) => {
+      this._acceptResolve = resolve;
+    });
+
     this._transport = new WebSocketTransport({
       uri: `wss://${config.serverDomain}?domain=test2.anderspitman.net&termination-type=server`,
       token: "yolo",
@@ -46,11 +50,19 @@ class Client {
       switch (frame.type) {
         case FRAME_TYPE_DATA:
           if (frame.syn) {
+
             const stream = new Stream(frame.streamId, writeCallback);
             stream.syn = false;
             this._streams[frame.streamId] = stream;
-            this._acceptCallback(stream);
-            //stream.emitWindowIncrease(DEFAULT_WINDOW_SIZE);
+
+            // TODO: this can probably get overwritten before being awaited
+            this._acceptResolve(stream);
+            this._acceptPromise = new Promise((resolve, reject) => {
+              this._acceptResolve = resolve;
+            });
+            if (this._acceptCallback) {
+              this._acceptCallback(stream);
+            }
           }
 
           stream = this._streams[frame.streamId];
@@ -85,6 +97,10 @@ class Client {
   onAccept(callback) {
     this._acceptCallback = callback;
   }
+
+  async accept() {
+    return this._acceptPromise;
+  }
 }
 
 class Stream {
@@ -92,14 +108,70 @@ class Stream {
     this.syn = true;
     this._streamId = streamId;
     this._writeCallback = writeCallback;
+    this._windowSize = 256*1024;
+
+    const stream = this;
+
+    this._readable = new ReadableStream({
+      start(controller) {
+        stream._enqueue = (data) => {
+          controller.enqueue(data);
+        };
+      }
+    });
+
+    const attemptSend = async (stream, data) => {
+      if (data.length < this._windowSize) {
+        stream._writeCallback(this._streamId, data);
+        this._windowSize -= data.length;
+        this._windowResolve = null;
+      }
+      else {
+        await new Promise((resolve, reject) => {
+          this._windowResolve = resolve;
+        });
+
+        await attemptSend(stream, data);
+      }
+    }
+
+    this._writable = new WritableStream({
+
+      start(controller) {
+      },
+
+      async write(chunk, controller) {
+        return await attemptSend(stream, chunk);
+      }
+    });
+  }
+
+  getReadableStream() {
+    return this._readable;
+  }
+
+  getWritableStream() {
+    return this._writable;
   }
 
   emitData(data) {
-    this._onDataCallback(data);
+    this._enqueue(data);
+
+    if (this._onDataCallback) {
+      this._onDataCallback(data);
+    }
   }
 
   emitWindowIncrease(windowIncrease) {
-    this._onWindowIncreaseCallback(windowIncrease);
+
+    this._windowSize += windowIncrease;
+    if (this._windowResolve) {
+      this._windowResolve();
+    }
+
+    if (this._onWindowIncreaseCallback) {
+      this._onWindowIncreaseCallback(windowIncrease);
+    }
   }
 
   onData(callback) {
@@ -110,6 +182,8 @@ class Stream {
     this._onWindowIncreaseCallback = callback;
   }
 
+  // TODO: might be able to just make this async and hide all the window
+  // complexity
   write(data) {
     this._writeCallback(this._streamId, data);
   }

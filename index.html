@@ -18,7 +18,7 @@
       const enc = new TextEncoder('utf8');
 
       const CHUNK_LEN = 32*1024;
-      const NCHUNKS = 1000;
+      const NCHUNKS = 100000;
 
       let chunkStr = "";
       for (let i = 0; i < CHUNK_LEN; i++ ) {
@@ -27,48 +27,24 @@
 
       const chunk = enc.encode(chunkStr);
 
+      (async () => {
 
-      let windowSize = 256*1024;
+        const stream = await session.accept();
 
-      let resolve = null;
+        const writer = stream.getWritableStream().getWriter();
 
-      session.onAccept((stream) => {
-        stream.onData(async (data) => {
-          console.log(new TextDecoder('utf8').decode(data));
+        for await (const c of stream.getReadableStream()) {
 
           const headers = enc.encode(`HTTP/1.1 200\nContent-Length: ${NCHUNKS*chunk.length}\n\n`);
 
-          await attemptSend(stream, headers);
+          await writer.write(headers);
 
           for (let i = 0; i < NCHUNKS; i++) {
-            await attemptSend(stream, chunk);
+            await writer.write(chunk);
           }
-
-        });
-
-        stream.onWindowIncrease((windowIncrease) => {
-          windowSize += windowIncrease;
-          if (resolve) {
-            resolve();
-          }
-        });
-      });
-
-      async function attemptSend(stream, data) {
-        if (data.length < windowSize) {
-          stream.write(data);
-          windowSize -= data.length;
-          resolve = null;
         }
-        else {
-          console.log("new promise");
-          await new Promise((newResolve, reject) => {
-            resolve = newResolve;
-          });
 
-          await attemptSend(stream, data);
-        }
-      }
+      })();
 
     </script>
   </body>
