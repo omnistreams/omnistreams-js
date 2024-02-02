@@ -1,8 +1,9 @@
 import { WebSocketTransport } from './transport.js';
 
+const FRAME_TYPE_RST = 0x00;
 const FRAME_TYPE_DATA = 0x01;
 const FRAME_TYPE_WNDINC = 0x02;
-const FRAME_TYPE_GOAWAY = 0x00;
+const FRAME_TYPE_GOAWAY = 0x03;
 
 const MUXADO_HEADER_SIZE = 8;
 
@@ -42,8 +43,6 @@ class Client {
     };
 
     this._transport.onFrame((frame) => {
-      //console.log("transport.onFrame");
-      //console.log(frame);
 
       let stream;
 
@@ -76,8 +75,11 @@ class Client {
           stream = this._streams[frame.streamId];
           stream.emitWindowIncrease(frame.windowIncrease);
           break;
+        case FRAME_TYPE_RST:
+          console.log("FRAME_TYPE_RST", frame.data);
+          break;
         case FRAME_TYPE_GOAWAY:
-          console.log("FRAME_TYPE_GOAWAY");
+          console.log("FRAME_TYPE_GOAWAY", frame.data);
           break;
       }
     });
@@ -131,7 +133,7 @@ class Stream {
           this._windowResolve = resolve;
         });
 
-        await attemptSend(stream, data);
+        return attemptSend(stream, data);
       }
     }
 
@@ -140,10 +142,14 @@ class Stream {
       start(controller) {
       },
 
-      async write(chunk, controller) {
-        return await attemptSend(stream, chunk);
+      write(chunk, controller) {
+        return attemptSend(stream, chunk);
       }
-    });
+    },
+    //new ByteLengthQueuingStrategy({
+    //  highWaterMark: 256*1024
+    //})
+    );
   }
 
   getReadableStream() {

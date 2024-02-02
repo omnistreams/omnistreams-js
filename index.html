@@ -40,6 +40,7 @@
           await writer.write(headers);
 
           for (let i = 0; i < NCHUNKS; i++) {
+            await writer.reader;
             await writer.write(chunk);
           }
         }
