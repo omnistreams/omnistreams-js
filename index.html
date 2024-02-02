@@ -18,7 +18,7 @@
       const enc = new TextEncoder('utf8');
 
       const CHUNK_LEN = 32*1024;
-      const NCHUNKS = 100000;
+      const NCHUNKS = 10000;
 
       let chunkStr = "";
       for (let i = 0; i < CHUNK_LEN; i++ ) {
@@ -64,6 +64,8 @@
               break;
             }
           }
+
+          writer.close();
         }
       }
 

@@ -42,6 +42,19 @@ class Client {
       });
     };
 
+    const closeCallback = (streamId) => {
+      const stream = this._streams[streamId];
+
+      console.log("close frame", streamId);
+      this._transport.writeFrame({
+        type: FRAME_TYPE_DATA,
+        fin: true,
+        syn: false,
+        streamId: streamId,
+        //data: data,
+      });
+    };
+
     this._transport.onFrame((frame) => {
 
       let stream;
@@ -51,7 +64,7 @@ class Client {
           console.log("FRAME_TYPE_DATA", frame);
           if (frame.syn) {
 
-            const stream = new Stream(frame.streamId, writeCallback);
+            const stream = new Stream(frame.streamId, writeCallback, closeCallback);
             stream.syn = false;
             this._streams[frame.streamId] = stream;
 
@@ -88,7 +101,8 @@ class Client {
 
           break;
         case FRAME_TYPE_GOAWAY:
-          console.log("FRAME_TYPE_GOAWAY", frame.data);
+          const dec = new TextDecoder('utf8');
+          console.log("FRAME_TYPE_GOAWAY", frame, dec.decode(frame.data));
           break;
       }
     });
@@ -111,10 +125,11 @@ class Client {
 }
 
 class Stream {
-  constructor(streamId, writeCallback) {
+  constructor(streamId, writeCallback, closeCallback) {
     this.syn = true;
     this._streamId = streamId;
     this._writeCallback = writeCallback;
+    this._closeCallback = closeCallback;
     this._windowSize = DEFAULT_WINDOW_SIZE;
 
     const stream = this;
@@ -164,6 +179,7 @@ class Stream {
 
       close() {
         console.log("writer close signal");
+        stream._closeCallback(stream._streamId);
       }
     },
     //new ByteLengthQueuingStrategy({
@@ -242,14 +258,19 @@ function unpackFrame(frameArray) {
 }
 
 function packFrame(frame) {
-  const length = frame.data.length;
+
+  let length = 0;
+
+  if (frame.data !== undefined) {
+    length = frame.data.length;
+  }
 
   const synBit = frame.syn === true ? 1 : 0;
   const finBit = frame.fin === true ? 1 : 0;
   const flags = (synBit << 1) | finBit;
 
   const f = frame;
-  const buf = new Uint8Array(MUXADO_HEADER_SIZE + frame.data.length);
+  const buf = new Uint8Array(MUXADO_HEADER_SIZE + length);
   buf[0] = length >> 16;
   buf[1] = length >> 8;
   buf[2] = length;
@@ -259,7 +280,9 @@ function packFrame(frame) {
   buf[6] = frame.streamId >> 8;
   buf[7] = frame.streamId;
 
-  buf.set(frame.data, MUXADO_HEADER_SIZE);
+  if (frame.data !== undefined) {
+    buf.set(frame.data, MUXADO_HEADER_SIZE);
+  }
 
   return buf;
 }
