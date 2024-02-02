@@ -73,7 +73,7 @@ class Client {
           break;
         case FRAME_TYPE_WNDINC:
           stream = this._streams[frame.streamId];
-          stream.emitWindowIncrease(frame.windowIncrease);
+          stream._windowIncrease(frame.windowIncrease);
           break;
         case FRAME_TYPE_RST:
           console.log("FRAME_TYPE_RST", frame.data);
@@ -168,7 +168,7 @@ class Stream {
     }
   }
 
-  emitWindowIncrease(windowIncrease) {
+  _windowIncrease(windowIncrease) {
 
     this._windowSize += windowIncrease;
     if (this._windowResolve) {
