@@ -28,9 +28,22 @@
       const chunk = enc.encode(chunkStr);
 
       (async () => {
+        while (true) {
 
-        const stream = await session.accept();
+          let stream;
 
+          try {
+            stream = await session.accept();
+          }
+          catch (e) {
+            break;
+          }
+          
+          handleStream(stream);
+        }
+      })();
+
+      async function handleStream(stream) {
         const writer = stream.getWritableStream().getWriter();
 
         for await (const c of stream.getReadableStream()) {
@@ -40,12 +53,19 @@
           await writer.write(headers);
 
           for (let i = 0; i < NCHUNKS; i++) {
+
             await writer.reader;
-            await writer.write(chunk);
+
+            try {
+              await writer.write(chunk);
+            }
+            catch (e) {
+              console.error("write failed, other side may have cancelled");
+              break;
+            }
           }
         }
-
-      })();
+      }
 
     </script>
   </body>

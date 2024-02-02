@@ -7,7 +7,7 @@ const FRAME_TYPE_GOAWAY = 0x03;
 
 const MUXADO_HEADER_SIZE = 8;
 
-//const DEFAULT_WINDOW_SIZE = 256*1024;
+const DEFAULT_WINDOW_SIZE = 256*1024;
 
 class Client {
   constructor(config) {
@@ -48,6 +48,7 @@ class Client {
 
       switch (frame.type) {
         case FRAME_TYPE_DATA:
+          console.log("FRAME_TYPE_DATA", frame);
           if (frame.syn) {
 
             const stream = new Stream(frame.streamId, writeCallback);
@@ -76,7 +77,15 @@ class Client {
           stream._windowIncrease(frame.windowIncrease);
           break;
         case FRAME_TYPE_RST:
-          console.log("FRAME_TYPE_RST", frame.data);
+          console.log("FRAME_TYPE_RST", frame, frame.data);
+
+          stream = this._streams[frame.streamId];
+          if (stream) {
+            stream._reset(frame.errorCode);
+          }
+
+          delete this._streams[frame.streamId];
+
           break;
         case FRAME_TYPE_GOAWAY:
           console.log("FRAME_TYPE_GOAWAY", frame.data);
@@ -110,27 +119,37 @@ class Stream {
     this.syn = true;
     this._streamId = streamId;
     this._writeCallback = writeCallback;
-    this._windowSize = 256*1024;
+    this._windowSize = DEFAULT_WINDOW_SIZE;
 
     const stream = this;
 
     this._readable = new ReadableStream({
       start(controller) {
+        stream._readableController = controller;
         stream._enqueue = (data) => {
           controller.enqueue(data);
         };
+      },
+
+      close() {
+        console.log("reader close signal");
       }
     });
 
     const attemptSend = async (stream, data) => {
-      if (data.length < this._windowSize) {
-        stream._writeCallback(this._streamId, data);
-        this._windowSize -= data.length;
-        this._windowResolve = null;
+      if (stream._done) {
+        return;
+      }
+
+      if (data.length < stream._windowSize) {
+        stream._writeCallback(stream._streamId, data);
+        stream._windowSize -= data.length;
+        stream._windowResolve = null;
       }
       else {
         await new Promise((resolve, reject) => {
-          this._windowResolve = resolve;
+          stream._windowResolve = resolve;
+          stream._writeReject = reject;
         });
 
         return attemptSend(stream, data);
@@ -140,10 +159,15 @@ class Stream {
     this._writable = new WritableStream({
 
       start(controller) {
+        stream._writableController = controller;
       },
 
       write(chunk, controller) {
         return attemptSend(stream, chunk);
+      },
+
+      close() {
+        console.log("writer close signal");
       }
     },
     //new ByteLengthQueuingStrategy({
@@ -177,6 +201,15 @@ class Stream {
 
     if (this._onWindowIncreaseCallback) {
       this._onWindowIncreaseCallback(windowIncrease);
+    }
+  }
+
+  _reset(errorCode) {
+    this._done = true;
+    this._readableController.close();
+
+    if (this._writeReject) {
+      this._writeReject();
     }
   }
 
@@ -222,6 +255,9 @@ function unpackFrame(frameArray) {
     case FRAME_TYPE_WNDINC:
       frame.windowIncrease = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
       break;
+    case FRAME_TYPE_RST:
+      frame.errorCode = unpackUint32(data);
+      break;
   }
 
   return frame;
@@ -248,6 +284,10 @@ function packFrame(frame) {
   buf.set(frame.data, MUXADO_HEADER_SIZE);
 
   return buf;
+}
+
+function unpackUint32(data) {
+  return (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
 }
 
 function buf2hex(buffer) { // buffer is an ArrayBuffer

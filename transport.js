@@ -17,7 +17,12 @@ class WebSocketTransport {
     });
 
     ws.addEventListener("message", (evt) => {
-      //console.log(evt);
+      //console.log("evt", evt, evt.data, evt.data.byteLength);
+
+      if (evt.data.byteLength === 0) {
+        // TODO: figure out why we're receiving some 0-length messages
+        return;
+      }
 
       switch (state) {
         case STATE_WAITING_FOR_FRAME:
