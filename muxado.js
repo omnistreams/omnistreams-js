@@ -145,27 +145,7 @@ class Stream {
       close() {
         console.log("reader close signal");
       }
-    });
-
-    const attemptSend = async (stream, data) => {
-      if (stream._done) {
-        return;
-      }
-
-      if (data.length < stream._windowSize) {
-        stream._writeCallback(stream._streamId, data);
-        stream._windowSize -= data.length;
-        stream._windowResolve = null;
-      }
-      else {
-        await new Promise((resolve, reject) => {
-          stream._windowResolve = resolve;
-          stream._writeReject = reject;
-        });
-
-        return attemptSend(stream, data);
-      }
-    }
+    }); 
 
     this._writable = new WritableStream({
 
@@ -174,7 +154,7 @@ class Stream {
       },
 
       write(chunk, controller) {
-        return attemptSend(stream, chunk);
+        return stream._attemptSend(chunk);
       },
 
       close() {
@@ -218,6 +198,26 @@ class Stream {
 
     if (this._writeReject) {
       this._writeReject();
+    }
+  }
+
+  async _attemptSend(data) {
+    if (this._done) {
+      return;
+    }
+
+    if (data.length < this._windowSize) {
+      this._writeCallback(this._streamId, data);
+      this._windowSize -= data.length;
+      this._windowResolve = null;
+    }
+    else {
+      await new Promise((resolve, reject) => {
+        this._windowResolve = resolve;
+        this._writeReject = reject;
+      });
+
+      return this._attemptSend(data);
     }
   }
 }
