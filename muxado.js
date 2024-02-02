@@ -68,7 +68,7 @@ class Client {
           stream = this._streams[frame.streamId];
 
           if (frame.data.length > 0) {
-            stream.emitData(frame.data);
+            stream._enqueueData(frame.data);
           }
 
           break;
@@ -103,10 +103,6 @@ class Client {
     this._streams[streamId] = stream;
 
     return stream;
-  }
-
-  onAccept(callback) {
-    this._acceptCallback = callback;
   }
 
   async accept() {
@@ -184,12 +180,8 @@ class Stream {
     return this._writable;
   }
 
-  emitData(data) {
+  _enqueueData(data) {
     this._enqueue(data);
-
-    if (this._onDataCallback) {
-      this._onDataCallback(data);
-    }
   }
 
   _windowIncrease(windowIncrease) {
@@ -211,20 +203,6 @@ class Stream {
     if (this._writeReject) {
       this._writeReject();
     }
-  }
-
-  onData(callback) {
-    this._onDataCallback = callback;
-  }
-
-  onWindowIncrease(callback) {
-    this._onWindowIncreaseCallback = callback;
-  }
-
-  // TODO: might be able to just make this async and hide all the window
-  // complexity
-  write(data) {
-    this._writeCallback(this._streamId, data);
   }
 }
 
@@ -290,15 +268,8 @@ function unpackUint32(data) {
   return (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
 }
 
-function buf2hex(buffer) { // buffer is an ArrayBuffer
-  return [...new Uint8Array(buffer)]
-      .map(x => x.toString(16).padStart(2, '0'))
-      .join('');
-}
-
 export {
   Client,
-  buf2hex,
   packFrame,
   unpackFrame,
 };

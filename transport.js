@@ -1,4 +1,4 @@
-import { buf2hex, unpackFrame, packFrame } from './muxado.js';
+import { unpackFrame, packFrame } from './muxado.js';
 
 const STATE_WAITING_FOR_FRAME = 0;
 const STATE_RECEIVING_FRAME = 1;
