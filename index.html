@@ -9,65 +9,56 @@
   <body>
     <script type="module">
       import { Client } from './muxado.js';
+      import { Server, ServeMux } from './lib/http-js/index.js';
 
       const session = new Client({
         serverDomain: "anderspitman.net",
         token: "yolo",
       });
 
-      const enc = new TextEncoder('utf8');
+      const mux = new ServeMux();
+      const httpServer = new Server({
+        handler: mux,
+      });
 
+      const enc = new TextEncoder('utf8');
       const CHUNK_LEN = 32*1024;
       const NCHUNKS = 10000;
-
       let chunkStr = "";
       for (let i = 0; i < CHUNK_LEN; i++ ) {
         chunkStr += "9";
       }
-
       const chunk = enc.encode(chunkStr);
 
-      (async () => {
-        while (true) {
+      mux.handleFunc("/", async (w, r) => {
+        console.log(w, r);
 
-          let stream;
+        w.headers['Content-Length'] = `${NCHUNKS*chunk.length}`;
 
+        for (let i = 0; i < NCHUNKS; i++) {
           try {
-            stream = await session.accept();
+            await w.write(chunk);
           }
           catch (e) {
+            console.error("write failed, other side may have cancelled", e);
             break;
           }
-          
-          handleStream(stream);
         }
-      })();
+      });
 
-      async function handleStream(stream) {
-        const writer = stream.getWritableStream().getWriter();
+      mux.handleFunc("/og", async (w, r) => {
+        w.headers = {
+          'OG': "Hi there",
+          'Content-Length': 8,
+          'Content-Type': 'text/plain',
+        },
 
-        for await (const c of stream.getReadableStream()) {
+        await w.writeHeader(400);
+        await w.write(enc.encode("Hi there"));
+      });
 
-          const headers = enc.encode(`HTTP/1.1 200\nContent-Length: ${NCHUNKS*chunk.length}\n\n`);
-
-          await writer.write(headers);
-
-          for (let i = 0; i < NCHUNKS; i++) {
-
-            await writer.reader;
-
-            try {
-              await writer.write(chunk);
-            }
-            catch (e) {
-              console.error("write failed, other side may have cancelled");
-              break;
-            }
-          }
-
-          writer.close();
-        }
-      }
+      console.log("serve");
+      httpServer.serve(session);
 
     </script>
   </body>
