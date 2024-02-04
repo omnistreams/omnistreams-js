@@ -1,4 +1,4 @@
-import { unpackFrame, packFrame } from './muxado.js';
+import { unpackFrame, packFrame } from './index.js';
 
 const STATE_WAITING_FOR_FRAME = 0;
 const STATE_RECEIVING_FRAME = 1;
