@@ -1,22 +1,26 @@
 import { unpackFrame, packFrame } from './index.js';
 
+const WS = typeof WebSocket !== 'undefined' ? WebSocket
+  : (await import('ws')).WebSocket;
+
 const STATE_WAITING_FOR_FRAME = 0;
 const STATE_RECEIVING_FRAME = 1;
 
 class WebSocketTransport {
   constructor(config) {
-    const ws = new WebSocket(config.uri);
+
+    const ws = new WS(config.uri);
     this._ws = ws;
     ws.binaryType = 'arraybuffer';
 
     let state = STATE_WAITING_FOR_FRAME;
     let frame;
 
-    ws.addEventListener("open", (evt) => {
+    ws.onopen = (evt) => {
       console.log(evt);
-    });
+    };
 
-    ws.addEventListener("message", (evt) => {
+    ws.onmessage = (evt) => {
       //console.log("evt", evt, evt.data, evt.data.byteLength);
 
       if (evt.data.byteLength === 0) {
@@ -54,15 +58,16 @@ class WebSocketTransport {
 
           break;
       }
-    });
+    };
 
-    ws.addEventListener("close", (evt) => {
+    ws.onclose = (evt) => {
       console.log(evt);
-    });
+    };
 
-    ws.addEventListener("error", (evt) => {
+    ws.onerror = (evt) => {
       console.log(evt);
-    });
+    };
+
   }
 
   onFrame(onFrameCb) {
