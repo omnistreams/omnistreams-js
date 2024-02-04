@@ -20,7 +20,7 @@ class Client {
     });
 
     this._transport = new WebSocketTransport({
-      uri: `wss://${config.serverDomain}?domain=test2.anderspitman.net&termination-type=server`,
+      uri: `wss://${config.serverDomain}?domain=${config.tunnelDomain}&termination-type=server`,
       token: "yolo",
     });
 
@@ -168,11 +168,11 @@ class Stream {
     );
   }
 
-  getReadableStream() {
+  get readable() {
     return this._readable;
   }
 
-  getWritableStream() {
+  get writable() {
     return this._writable;
   }
 
