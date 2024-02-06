@@ -197,7 +197,7 @@ class Stream {
     this._readableController.close();
 
     if (this._writeReject) {
-      this._writeReject();
+      this._writeReject(new Error("Stream reset"));
     }
   }
 
