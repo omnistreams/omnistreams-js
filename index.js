@@ -11,18 +11,20 @@ const DEFAULT_WINDOW_SIZE = 256*1024;
 
 async function connect(config) {
   const transport = new WebSocketTransport({
-    uri: `wss://${config.serverDomain}?domain=${config.tunnelDomain}&termination-type=server`,
-    token: "yolo",
+    serverDomain: config.serverDomain,
+    token: config.token,
+    terminationType: 'server',
   });
 
-  await transport.connect();
+  const tunConfig = await transport.connect();
 
-  return new Client(Object.assign(config, { transport }));
+  return new Client(Object.assign(config, { transport, domain: tunConfig.domain }));
 }
 
 class Client {
   constructor(config) {
 
+    this.domain = config.domain;
     this._nextStreamId = 1;
     this._streams = {};
 

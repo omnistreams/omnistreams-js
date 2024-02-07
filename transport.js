@@ -10,6 +10,11 @@ class WebSocketTransport {
 
   async connect() {
 
+    let onReady;
+    const ready = new Promise((resolve, reject) => {
+      onReady = resolve;
+    });
+
     let WS;
     if (isNode()) {
       WS = (await import('ws')).WebSocket;
@@ -18,7 +23,9 @@ class WebSocketTransport {
       WS = WebSocket;
     }
 
-    const ws = new WS(this._config.uri);
+    const c = this._config;
+    const uri = `wss://${c.serverDomain}?token=${c.token}&termination-type=${c.terminationType}`;
+    const ws = new WS(uri);
     this._ws = ws;
     ws.binaryType = 'arraybuffer';
 
@@ -26,11 +33,23 @@ class WebSocketTransport {
     let frame;
 
     ws.onopen = (evt) => {
-      console.log(evt);
+      console.log("WebSocket open");
     };
+
+    let haveConfig = false;
 
     ws.onmessage = (evt) => {
       //console.log("evt", evt, evt.data, evt.data.byteLength);
+      
+      // first message is the tunnel config
+      if (!haveConfig) {
+        const dec = new TextDecoder('utf-8');
+        const arr = new Uint8Array(evt.data);
+        const tunConfig = JSON.parse(dec.decode(arr));
+        haveConfig = true;
+        onReady(tunConfig);
+        return;
+      }
 
       if (evt.data.byteLength === 0) {
         // TODO: figure out why we're receiving some 0-length messages
@@ -77,6 +96,9 @@ class WebSocketTransport {
       console.log(evt);
     };
 
+    const tunConfig = await ready;
+
+    return tunConfig;
   }
 
   onFrame(onFrameCb) {
