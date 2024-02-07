@@ -9,6 +9,17 @@ const MUXADO_HEADER_SIZE = 8;
 
 const DEFAULT_WINDOW_SIZE = 256*1024;
 
+async function connect(config) {
+  const transport = new WebSocketTransport({
+    uri: `wss://${config.serverDomain}?domain=${config.tunnelDomain}&termination-type=server`,
+    token: "yolo",
+  });
+
+  await transport.connect();
+
+  return new Client(Object.assign(config, { transport }));
+}
+
 class Client {
   constructor(config) {
 
@@ -19,10 +30,7 @@ class Client {
       this._acceptResolve = resolve;
     });
 
-    this._transport = new WebSocketTransport({
-      uri: `wss://${config.serverDomain}?domain=${config.tunnelDomain}&termination-type=server`,
-      token: "yolo",
-    });
+    this._transport = config.transport;
 
     const writeCallback = (streamId, data) => {
 
@@ -292,7 +300,7 @@ function unpackUint32(data) {
 }
 
 export {
-  Client,
+  connect,
   packFrame,
   unpackFrame,
 };

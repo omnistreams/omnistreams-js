@@ -1,15 +1,24 @@
 import { unpackFrame, packFrame } from './index.js';
 
-const WS = typeof WebSocket !== 'undefined' ? WebSocket
-  : (await import('ws')).WebSocket;
-
 const STATE_WAITING_FOR_FRAME = 0;
 const STATE_RECEIVING_FRAME = 1;
 
 class WebSocketTransport {
   constructor(config) {
+    this._config = config;
+  }
 
-    const ws = new WS(config.uri);
+  async connect() {
+
+    let WS;
+    if (isNode()) {
+      WS = (await import('ws')).WebSocket;
+    }
+    else {
+      WS = WebSocket;
+    }
+
+    const ws = new WS(this._config.uri);
     this._ws = ws;
     ws.binaryType = 'arraybuffer';
 
@@ -78,6 +87,10 @@ class WebSocketTransport {
     const buf = packFrame(frame); 
     this._ws.send(buf);
   }
+}
+
+function isNode() {
+  return (typeof process !== 'undefined' && process.release.name === 'node');
 }
 
 export {
