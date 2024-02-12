@@ -11,8 +11,10 @@ class WebSocketTransport {
   async connect() {
 
     let onReady;
+    let onError;
     const ready = new Promise((resolve, reject) => {
       onReady = resolve;
+      onError = reject;
     });
 
     let WS;
@@ -24,7 +26,7 @@ class WebSocketTransport {
     }
 
     const c = this._config;
-    const uri = `wss://${c.serverDomain}?token=${c.token}&termination-type=${c.terminationType}`;
+    const uri = `wss://${c.serverDomain}/waygate?token=${c.token}&termination-type=${c.terminationType}`;
     const ws = new WS(uri);
     this._ws = ws;
     ws.binaryType = 'arraybuffer';
@@ -93,7 +95,8 @@ class WebSocketTransport {
     };
 
     ws.onerror = (evt) => {
-      console.log(evt);
+      console.error(evt);
+      onError(evt);
     };
 
     const tunConfig = await ready;
