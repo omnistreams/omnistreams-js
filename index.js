@@ -24,6 +24,8 @@ async function connect(config) {
 class Client {
   constructor(config) {
 
+    this._acceptCallback = null;
+
     this.domain = config.domain;
     this._nextStreamId = 1;
     this._streams = {};
@@ -122,7 +124,7 @@ class Client {
     const streamId = this._nextStreamId;
     this._nextStreamId += 2;
 
-    const stream = new Stream(frame.streamId, this._transport);
+    const stream = new Stream(streamId, this._transport);
 
     this._streams[streamId] = stream;
 
@@ -142,6 +144,11 @@ class Stream {
     this._closeCallback = closeCallback;
     this._windowSize = DEFAULT_WINDOW_SIZE;
 
+    this._readableController = null;
+    this._writableController = null;
+    this._onWindowIncreaseCallback = null;
+    this._enqueue = null;
+
     const stream = this;
 
     this._readable = new ReadableStream({
@@ -152,8 +159,8 @@ class Stream {
         };
       },
 
-      close() {
-        console.log("reader close signal");
+      cancel() {
+        console.log("reader cancel signal");
       }
     }); 
 
