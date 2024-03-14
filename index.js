@@ -26,7 +26,7 @@ class Client {
 
     this._acceptCallback = null;
 
-    this.domain = config.domain;
+    this._domain = config.domain;
     this._nextStreamId = 1;
     this._streams = {};
 
@@ -134,6 +134,10 @@ class Client {
 
   async accept() {
     return this._acceptPromise;
+  }
+
+  getDomain() {
+    return this._domain;
   }
 }
 
