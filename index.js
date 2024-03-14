@@ -72,6 +72,7 @@ class Client {
       let stream;
 
       switch (frame.type) {
+        // TODO: need to be sending back WNDINC when data is received
         case FRAME_TYPE_DATA:
           console.log("FRAME_TYPE_DATA", frame);
           if (frame.syn) {
@@ -160,6 +161,7 @@ class Stream {
       },
 
       cancel() {
+        // TODO: should probably be doing something here...
         console.log("reader cancel signal");
       }
     }); 
