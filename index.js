@@ -57,7 +57,7 @@ class Client {
     const closeCallback = (streamId) => {
       const stream = this._streams[streamId];
 
-      console.log("close frame", streamId);
+      //console.log("close frame", streamId);
       this._transport.writeFrame({
         type: FRAME_TYPE_DATA,
         fin: true,
@@ -74,7 +74,7 @@ class Client {
       switch (frame.type) {
         // TODO: need to be sending back WNDINC when data is received
         case FRAME_TYPE_DATA:
-          console.log("FRAME_TYPE_DATA", frame);
+          //console.log("FRAME_TYPE_DATA", frame);
           if (frame.syn) {
 
             const stream = new Stream(frame.streamId, writeCallback, closeCallback);
@@ -103,7 +103,7 @@ class Client {
           stream._windowIncrease(frame.windowIncrease);
           break;
         case FRAME_TYPE_RST:
-          console.log("FRAME_TYPE_RST", frame, frame.data);
+          //console.log("FRAME_TYPE_RST", frame, frame.data);
 
           stream = this._streams[frame.streamId];
           if (stream) {
@@ -115,7 +115,7 @@ class Client {
           break;
         case FRAME_TYPE_GOAWAY:
           const dec = new TextDecoder('utf8');
-          console.log("FRAME_TYPE_GOAWAY", frame, dec.decode(frame.data));
+          //console.log("FRAME_TYPE_GOAWAY", frame, dec.decode(frame.data));
           break;
       }
     });
@@ -162,7 +162,7 @@ class Stream {
 
       cancel() {
         // TODO: should probably be doing something here...
-        console.log("reader cancel signal");
+        //console.log("reader cancel signal");
       }
     }); 
 
@@ -177,7 +177,7 @@ class Stream {
       },
 
       close() {
-        console.log("writer close signal");
+        //console.log("writer close signal");
         stream._closeCallback(stream._streamId);
       }
     },

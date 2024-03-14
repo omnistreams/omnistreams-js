@@ -35,13 +35,12 @@ class WebSocketTransport {
     let frame;
 
     ws.onopen = (evt) => {
-      console.log("WebSocket open");
+      //console.log("WebSocket open");
     };
 
     let haveConfig = false;
 
     ws.onmessage = (evt) => {
-      //console.log("evt", evt, evt.data, evt.data.byteLength);
       
       // first message is the tunnel config
       if (!haveConfig) {
@@ -62,8 +61,6 @@ class WebSocketTransport {
         case STATE_WAITING_FOR_FRAME:
           const frameArray = new Uint8Array(evt.data);
           frame = unpackFrame(frameArray);
-
-          //console.log("frame", JSON.stringify(frame, null, 2));
 
           if (frame.bytesReceived < frame.length) {
             state = STATE_RECEIVING_FRAME;
@@ -91,7 +88,7 @@ class WebSocketTransport {
     };
 
     ws.onclose = (evt) => {
-      console.log(evt);
+      //console.log(evt);
     };
 
     ws.onerror = (evt) => {
