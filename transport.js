@@ -18,12 +18,13 @@ class WebSocketTransport {
     });
 
     let WS;
-    if (isNode()) {
-      WS = (await import('ws')).WebSocket;
-    }
-    else {
-      WS = WebSocket;
-    }
+    WS = WebSocket;
+    //if (isNode()) {
+    //  WS = (await import('ws')).WebSocket;
+    //}
+    //else {
+    //  WS = WebSocket;
+    //}
 
     const c = this._config;
     const uri = `wss://${c.serverDomain}/waygate?token=${c.token}&termination-type=${c.terminationType}`;
@@ -111,9 +112,9 @@ class WebSocketTransport {
   }
 }
 
-function isNode() {
-  return (typeof process !== 'undefined' && process.release.name === 'node');
-}
+//function isNode() {
+//  return (typeof process !== 'undefined' && process.release.name === 'node');
+//}
 
 export {
   WebSocketTransport,
