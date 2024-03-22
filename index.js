@@ -74,7 +74,7 @@ class Client {
       switch (frame.type) {
         // TODO: need to be sending back WNDINC when data is received
         case FRAME_TYPE_DATA:
-          //console.log("FRAME_TYPE_DATA", frame);
+          console.log("FRAME_TYPE_DATA", frame);
           if (frame.syn) {
 
             const stream = new Stream(frame.streamId, writeCallback, closeCallback);
@@ -99,23 +99,34 @@ class Client {
 
           break;
         case FRAME_TYPE_WNDINC:
-          stream = this._streams[frame.streamId];
-          stream._windowIncrease(frame.windowIncrease);
+          //console.log("FRAME_TYPE_WNDINC", frame, frame.data);
+          if (this._streams[frame.streamId]) {
+            stream = this._streams[frame.streamId];
+            stream._windowIncrease(frame.windowIncrease);
+          }
+          else {
+            console.error("WNDINC received for unknown stream: ", frame);
+          }
           break;
         case FRAME_TYPE_RST:
-          //console.log("FRAME_TYPE_RST", frame, frame.data);
+          console.log("FRAME_TYPE_RST", frame, frame.data);
 
           stream = this._streams[frame.streamId];
           if (stream) {
             stream._reset(frame.errorCode);
           }
 
+          // TODO: delete streams after normal termination as well, ie after
+          // both sides are done writing
           delete this._streams[frame.streamId];
 
           break;
         case FRAME_TYPE_GOAWAY:
           const dec = new TextDecoder('utf8');
-          //console.log("FRAME_TYPE_GOAWAY", frame, dec.decode(frame.data));
+          console.log("FRAME_TYPE_GOAWAY", frame, dec.decode(frame.data));
+          break;
+        default:
+          console.log("Unknown frame type", frame);
           break;
       }
     });
