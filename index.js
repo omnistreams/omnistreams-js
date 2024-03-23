@@ -97,6 +97,10 @@ class Client {
             stream._enqueueData(frame.data);
           }
 
+          if (frame.fin) {
+            stream.closeRead();
+          }
+
           break;
         case FRAME_TYPE_WNDINC:
           //console.log("FRAME_TYPE_WNDINC", frame, frame.data);
@@ -116,9 +120,8 @@ class Client {
             stream._reset(frame.errorCode);
           }
 
-          // TODO: delete streams after normal termination as well, ie after
-          // both sides are done writing
-          delete this._streams[frame.streamId];
+          // TODO: figure out proper way to delete streams
+          //delete this._streams[frame.streamId];
 
           break;
         case FRAME_TYPE_GOAWAY:
@@ -160,6 +163,7 @@ class Stream {
     this._closeCallback = closeCallback;
     this._windowSize = DEFAULT_WINDOW_SIZE;
 
+    this._readClosed = false;
     this._readableController = null;
     this._writableController = null;
     this._onWindowIncreaseCallback = null;
@@ -177,7 +181,8 @@ class Stream {
 
       cancel() {
         // TODO: should probably be doing something here...
-        //console.log("reader cancel signal");
+        //console.log("TODO: reader cancel signal", stream._streamId);
+        stream._readClosed = true;
       }
     }); 
 
@@ -192,7 +197,6 @@ class Stream {
       },
 
       close() {
-        //console.log("writer close signal");
         stream._closeCallback(stream._streamId);
       }
     },
@@ -226,9 +230,17 @@ class Stream {
     }
   }
 
+  closeRead() {
+    if (!this._readClosed) {
+      this._readClosed = true;
+      return this._readableController.close();
+    }
+  }
+
   _reset(errorCode) {
     this._done = true;
-    this._readableController.close();
+
+    this.closeRead();
 
     if (this._writeReject) {
       this._writeReject(new Error("Stream reset"));
