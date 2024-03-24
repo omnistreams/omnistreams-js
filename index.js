@@ -1,9 +1,10 @@
-import { WebSocketTransport } from './transport.js';
-
 const FRAME_TYPE_RST = 0x00;
 const FRAME_TYPE_DATA = 0x01;
 const FRAME_TYPE_WNDINC = 0x02;
 const FRAME_TYPE_GOAWAY = 0x03;
+
+const STATE_WAITING_FOR_FRAME = 0;
+const STATE_RECEIVING_FRAME = 1;
 
 const MUXADO_HEADER_SIZE = 8;
 
@@ -285,39 +286,118 @@ class Stream {
   }
 }
 
-function unpackFrame(frameArray) {
-  const fa = frameArray;
-  const length = (fa[0] << 16) | (fa[1] << 8) | (fa[2]);
-  const type = (fa[3] & 0b11110000) >> 4;
-  const flags = (fa[3] & 0b00001111);
-  const fin = (flags & 0b0001) !== 0;
-  const syn = (flags & 0b0010) !== 0;
-  const streamId = (fa[4] << 24) | (fa[5] << 16) | (fa[6] << 8) | fa[7];
 
-  const frame = {
-    length,
-    type,
-    fin,
-    syn,
-    streamId,
-    bytesReceived: 0,
-  };
-
-  const data = frameArray.slice(MUXADO_HEADER_SIZE);
-  frame.data = new Uint8Array(length);
-  frame.data.set(data, 0);
-  frame.bytesReceived = data.length;
-
-  switch (frame.type) {
-    case FRAME_TYPE_WNDINC:
-      frame.windowIncrease = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
-      break;
-    case FRAME_TYPE_RST:
-      frame.errorCode = unpackUint32(data);
-      break;
+class WebSocketTransport {
+  constructor(config) {
+    this._config = config;
   }
 
-  return frame;
+  async connect() {
+
+    let onReady;
+    let onError;
+    const ready = new Promise((resolve, reject) => {
+      onReady = resolve;
+      onError = reject;
+    });
+
+    let WS;
+    WS = WebSocket;
+    //if (isNode()) {
+    //  WS = (await import('ws')).WebSocket;
+    //}
+    //else {
+    //  WS = WebSocket;
+    //}
+
+    const c = this._config;
+    const uri = `wss://${c.serverDomain}/waygate?token=${c.token}&termination-type=${c.terminationType}`;
+    const ws = new WS(uri);
+    this._ws = ws;
+    ws.binaryType = 'arraybuffer';
+
+    let state = STATE_WAITING_FOR_FRAME;
+    let frame;
+
+    ws.onopen = (evt) => {
+      //console.log("WebSocket open");
+    };
+
+    let haveConfig = false;
+
+    ws.onmessage = (evt) => {
+      
+      // first message is the tunnel config
+      if (!haveConfig) {
+        const dec = new TextDecoder('utf-8');
+        const arr = new Uint8Array(evt.data);
+        const tunConfig = JSON.parse(dec.decode(arr));
+        haveConfig = true;
+        onReady(tunConfig);
+        return;
+      }
+
+      if (evt.data.byteLength === 0) {
+        // TODO: figure out why we're receiving some 0-length messages
+        return;
+      }
+
+      switch (state) {
+        case STATE_WAITING_FOR_FRAME:
+          const frameArray = new Uint8Array(evt.data);
+          frame = unpackFrame(frameArray);
+
+          if (frame.bytesReceived < frame.length) {
+            state = STATE_RECEIVING_FRAME;
+          }
+          else {
+            delete frame.bytesReceived;
+            this.onFrameCb(frame);
+          }
+
+          break;
+        case STATE_RECEIVING_FRAME:
+          const arr = new Uint8Array(evt.data);
+          frame.data.set(arr, frame.bytesReceived);
+          // TODO: make sure we're properly handling frames split across multiple websocket messages
+          frame.bytesReceived += evt.data.length;
+
+          if (frame.data.length === frame.length) {
+            state = STATE_WAITING_FOR_FRAME;
+            delete frame.bytesReceived;
+            this.onFrameCb(frame);
+          }
+
+          break;
+      }
+    };
+
+    ws.onclose = (evt) => {
+      //console.log(evt);
+    };
+
+    ws.onerror = (evt) => {
+      console.error(evt);
+      onError(evt);
+    };
+
+    const tunConfig = await ready;
+
+    return tunConfig;
+  }
+
+  onFrame(onFrameCb) {
+    this.onFrameCb = (frame) => {
+      //console.log("Receive frame", frame);
+      onFrameCb(frame);
+    }
+  }
+
+  writeFrame(frame) {
+    //console.log("Send frame", frame);
+    const buf = packFrame(frame); 
+    this._ws.send(buf);
+  }
 }
 
 function packFrame(frame) {
@@ -364,12 +444,49 @@ function packFrame(frame) {
   return buf;
 }
 
+function unpackFrame(frameArray) {
+  const fa = frameArray;
+  const length = (fa[0] << 16) | (fa[1] << 8) | (fa[2]);
+  const type = (fa[3] & 0b11110000) >> 4;
+  const flags = (fa[3] & 0b00001111);
+  const fin = (flags & 0b0001) !== 0;
+  const syn = (flags & 0b0010) !== 0;
+  const streamId = (fa[4] << 24) | (fa[5] << 16) | (fa[6] << 8) | fa[7];
+
+  const frame = {
+    length,
+    type,
+    fin,
+    syn,
+    streamId,
+    bytesReceived: 0,
+  };
+
+  const data = frameArray.slice(MUXADO_HEADER_SIZE);
+  frame.data = new Uint8Array(length);
+  frame.data.set(data, 0);
+  frame.bytesReceived = data.length;
+
+  switch (frame.type) {
+    case FRAME_TYPE_WNDINC:
+      frame.windowIncrease = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+      break;
+    case FRAME_TYPE_RST:
+      frame.errorCode = unpackUint32(data);
+      break;
+  }
+
+  return frame;
+}
+
 function unpackUint32(data) {
   return (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
 }
 
+//function isNode() {
+//  return (typeof process !== 'undefined' && process.release.name === 'node');
+//}
+
 export {
   connect,
-  packFrame,
-  unpackFrame,
 };
