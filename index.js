@@ -24,8 +24,6 @@ async function connect(config) {
 class Client {
   constructor(config) {
 
-    this._acceptCallback = null;
-
     this._domain = config.domain;
     this._nextStreamId = 1;
     this._streams = {};
@@ -55,15 +53,19 @@ class Client {
     };
 
     const closeCallback = (streamId) => {
-      const stream = this._streams[streamId];
-
-      //console.log("close frame", streamId);
       this._transport.writeFrame({
         type: FRAME_TYPE_DATA,
         fin: true,
         syn: false,
         streamId: streamId,
-        //data: data,
+      });
+    };
+
+    const windowCallback = (streamId, windowIncrease) => {
+      this._transport.writeFrame({
+        type: FRAME_TYPE_WNDINC,
+        streamId,
+        windowIncrease,
       });
     };
 
@@ -74,10 +76,12 @@ class Client {
       switch (frame.type) {
         // TODO: need to be sending back WNDINC when data is received
         case FRAME_TYPE_DATA:
-          console.log("FRAME_TYPE_DATA", frame);
+
+          //console.log("FRAME_TYPE_DATA", frame);
+
           if (frame.syn) {
 
-            const stream = new Stream(frame.streamId, writeCallback, closeCallback);
+            const stream = new Stream(frame.streamId, writeCallback, closeCallback, windowCallback);
             stream.syn = false;
             this._streams[frame.streamId] = stream;
 
@@ -86,9 +90,6 @@ class Client {
             this._acceptPromise = new Promise((resolve, reject) => {
               this._acceptResolve = resolve;
             });
-            if (this._acceptCallback) {
-              this._acceptCallback(stream);
-            }
           }
 
           stream = this._streams[frame.streamId];
@@ -156,7 +157,7 @@ class Client {
 }
 
 class Stream {
-  constructor(streamId, writeCallback, closeCallback) {
+  constructor(streamId, writeCallback, closeCallback, windowCallback) {
     this.syn = true;
     this._streamId = streamId;
     this._writeCallback = writeCallback;
@@ -167,16 +168,28 @@ class Stream {
     this._readableController = null;
     this._writableController = null;
     this._onWindowIncreaseCallback = null;
-    this._enqueue = null;
+
+    this._queue = [];
 
     const stream = this;
 
     this._readable = new ReadableStream({
       start(controller) {
         stream._readableController = controller;
-        stream._enqueue = (data) => {
-          controller.enqueue(data);
-        };
+      },
+
+      pull(controller) {
+
+        if (stream._queue.length === 0) {
+          return new Promise((resolve, reject) => {
+            stream._queueResolve = resolve;
+          });
+        }
+        else {
+          const chunk = stream._queue.shift()
+          controller.enqueue(chunk);
+          windowCallback(streamId, chunk.length);
+        }
       },
 
       cancel() {
@@ -215,7 +228,11 @@ class Stream {
   }
 
   _enqueueData(data) {
-    this._enqueue(data);
+    this._queue.push(data);
+    if (this._queueResolve) {
+      this._queueResolve();
+      this._queueResolve = null;
+    }
   }
 
   _windowIncrease(windowIncrease) {
@@ -307,6 +324,10 @@ function packFrame(frame) {
 
   let length = 0;
 
+  if (frame.type === FRAME_TYPE_WNDINC) {
+    length = 4;
+  }
+
   if (frame.data !== undefined) {
     length = frame.data.length;
   }
@@ -328,6 +349,16 @@ function packFrame(frame) {
 
   if (frame.data !== undefined) {
     buf.set(frame.data, MUXADO_HEADER_SIZE);
+  }
+
+  switch (frame.type) {
+    case FRAME_TYPE_WNDINC: {
+      buf[8] = f.windowIncrease >> 24;
+      buf[9] = f.windowIncrease >> 16;
+      buf[10] = f.windowIncrease >> 8;
+      buf[11] = f.windowIncrease;
+      break;
+    }
   }
 
   return buf;

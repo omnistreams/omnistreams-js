@@ -103,10 +103,14 @@ class WebSocketTransport {
   }
 
   onFrame(onFrameCb) {
-    this.onFrameCb = onFrameCb;
+    this.onFrameCb = (frame) => {
+      //console.log("Receive frame", frame);
+      onFrameCb(frame);
+    }
   }
 
   writeFrame(frame) {
+    //console.log("Send frame", frame);
     const buf = packFrame(frame); 
     this._ws.send(buf);
   }
