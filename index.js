@@ -2,6 +2,9 @@ const FRAME_TYPE_RST = 0x00;
 const FRAME_TYPE_DATA = 0x01;
 const FRAME_TYPE_WNDINC = 0x02;
 const FRAME_TYPE_GOAWAY = 0x03;
+const FRAME_TYPE_MESSAGE = 0x04;
+
+const DATAGRAM_STREAM_ID = 0;
 
 const STATE_WAITING_FOR_FRAME = 0;
 const STATE_RECEIVING_FRAME = 1;
@@ -45,7 +48,7 @@ class Client {
       }
 
       this._transport.writeFrame({
-        type: FRAME_TYPE_DATA,
+        type: streamId === DATAGRAM_STREAM_ID ? FRAME_TYPE_MESSAGE : FRAME_TYPE_DATA,
         fin: false,
         syn: syn,
         streamId: streamId,
@@ -54,6 +57,11 @@ class Client {
     };
 
     const closeCallback = (streamId) => {
+
+      if (streamId === DATAGRAM_STREAM_ID) {
+        throw new Error("Attempted to close datagram stream");
+      }
+
       this._transport.writeFrame({
         type: FRAME_TYPE_DATA,
         fin: true,
@@ -75,6 +83,8 @@ class Client {
       let stream;
 
       switch (frame.type) {
+        case FRAME_TYPE_MESSAGE:
+        // fallthrough
         // TODO: need to be sending back WNDINC when data is received
         case FRAME_TYPE_DATA:
 
@@ -135,18 +145,22 @@ class Client {
           break;
       }
     });
+
+
+    this._datagramStream = new Stream(DATAGRAM_STREAM_ID, writeCallback, closeCallback, windowCallback);
+    this._streams[DATAGRAM_STREAM_ID] = this._datagramStream;
   }
 
-  open() {
-    const streamId = this._nextStreamId;
-    this._nextStreamId += 2;
+  //open() {
+  //  const streamId = this._nextStreamId;
+  //  this._nextStreamId += 2;
 
-    const stream = new Stream(streamId, this._transport);
+  //  const stream = new Stream(streamId, this._transport);
 
-    this._streams[streamId] = stream;
+  //  this._streams[streamId] = stream;
 
-    return stream;
-  }
+  //  return stream;
+  //}
 
   async accept() {
     return this._acceptPromise;
@@ -154,6 +168,10 @@ class Client {
 
   getDomain() {
     return this._domain;
+  }
+
+  get datagrams() {
+    return this._datagramStream;
   }
 }
 
