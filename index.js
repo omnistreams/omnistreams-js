@@ -13,6 +13,36 @@ const MUXADO_HEADER_SIZE = 8;
 
 const DEFAULT_WINDOW_SIZE = 256*1024;
 
+
+class WebTransport {
+  constructor(uri) {
+    this._readyPromise = new Promise(async (resolve, reject) => {
+
+      const parsedUri = new URL(uri);
+
+      this._conn = await connect({
+        serverDomain: parsedUri.host,
+        token: "",
+      });
+
+      resolve();
+    });
+  }
+
+  get ready() {
+    return this._readyPromise;
+  }
+
+  get incomingBidirectionalStreams() {
+    return this._incomingStreams;
+  }
+
+  async createBidirectionalStream() {
+    const stream = this._conn.open();
+    return stream;
+  }
+}
+
 async function connect(config) {
   const transport = new WebSocketTransport({
     serverDomain: config.serverDomain,
@@ -36,6 +66,10 @@ class Client {
       this._acceptResolve = resolve;
     });
 
+    const ts = new TransformStream();
+    this._incomingStreams = ts.readable;
+    const incomingWriter = ts.writable.getWriter();
+
     this._transport = config.transport;
 
     const writeCallback = (streamId, data) => {
@@ -55,6 +89,7 @@ class Client {
         data: data,
       });
     };
+    this._writeCallback = writeCallback;
 
     const closeCallback = (streamId) => {
 
@@ -69,6 +104,7 @@ class Client {
         streamId: streamId,
       });
     };
+    this._closeCallback = closeCallback;
 
     const windowCallback = (streamId, windowIncrease) => {
       this._transport.writeFrame({
@@ -77,6 +113,7 @@ class Client {
         windowIncrease,
       });
     };
+    this._windowCallback = windowCallback;
 
     this._transport.onFrame((frame) => {
 
@@ -101,6 +138,11 @@ class Client {
             this._acceptPromise = new Promise((resolve, reject) => {
               this._acceptResolve = resolve;
             });
+
+            // TODO: is it safe for this to be async?
+            (async () => {
+              await incomingWriter.write(stream);
+            })();
           }
 
           stream = this._streams[frame.streamId];
@@ -151,19 +193,23 @@ class Client {
     this._streams[DATAGRAM_STREAM_ID] = this._datagramStream;
   }
 
-  //open() {
-  //  const streamId = this._nextStreamId;
-  //  this._nextStreamId += 2;
+  open() {
+    const streamId = this._nextStreamId;
+    this._nextStreamId += 2;
 
-  //  const stream = new Stream(streamId, this._transport);
+    const stream = new Stream(streamId, this._writeCallback, this._closeCallback, this._windowCallback);
 
-  //  this._streams[streamId] = stream;
+    this._streams[streamId] = stream;
 
-  //  return stream;
-  //}
+    return stream;
+  }
 
   async accept() {
     return this._acceptPromise;
+  }
+
+  get incomingBidirectionalStreams() {
+    return this._incomingStreams;
   }
 
   getDomain() {
@@ -338,6 +384,7 @@ class WebSocketTransport {
     let frame;
 
     ws.onopen = (evt) => {
+      //onReady();
       //console.log("WebSocket open");
     };
 
@@ -507,4 +554,5 @@ function unpackUint32(data) {
 
 export {
   connect,
+  WebTransport,
 };
