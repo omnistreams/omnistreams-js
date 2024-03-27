@@ -14,35 +14,6 @@ const MUXADO_HEADER_SIZE = 8;
 const DEFAULT_WINDOW_SIZE = 256*1024;
 
 
-class WebTransport {
-  constructor(uri) {
-    this._readyPromise = new Promise(async (resolve, reject) => {
-
-      const parsedUri = new URL(uri);
-
-      this._conn = await connect({
-        serverDomain: parsedUri.host,
-        token: "",
-      });
-
-      resolve();
-    });
-  }
-
-  get ready() {
-    return this._readyPromise;
-  }
-
-  get incomingBidirectionalStreams() {
-    return this._incomingStreams;
-  }
-
-  async createBidirectionalStream() {
-    const stream = this._conn.open();
-    return stream;
-  }
-}
-
 async function connect(config) {
   const transport = new WebSocketTransport({
     serverDomain: config.serverDomain,
@@ -534,5 +505,4 @@ function unpackUint32(data) {
 
 export {
   connect,
-  WebTransport,
 };
