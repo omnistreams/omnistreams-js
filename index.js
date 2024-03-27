@@ -50,15 +50,14 @@ async function connect(config) {
     terminationType: 'server',
   });
 
-  const tunConfig = await transport.connect();
+  await transport.connect();
 
-  return new Client(Object.assign(config, { transport, domain: tunConfig.domain }));
+  return new Client(Object.assign(config, { transport }));
 }
 
 class Client {
   constructor(config) {
 
-    this._domain = config.domain;
     this._nextStreamId = 1;
     this._streams = {};
 
@@ -210,10 +209,6 @@ class Client {
 
   get incomingBidirectionalStreams() {
     return this._incomingStreams;
-  }
-
-  getDomain() {
-    return this._domain;
   }
 
   get datagrams() {
@@ -384,24 +379,13 @@ class WebSocketTransport {
     let frame;
 
     ws.onopen = (evt) => {
-      //onReady();
-      //console.log("WebSocket open");
+      onReady();
     };
 
     let haveConfig = false;
 
     ws.onmessage = (evt) => {
       
-      // first message is the tunnel config
-      if (!haveConfig) {
-        const dec = new TextDecoder('utf-8');
-        const arr = new Uint8Array(evt.data);
-        const tunConfig = JSON.parse(dec.decode(arr));
-        haveConfig = true;
-        onReady(tunConfig);
-        return;
-      }
-
       if (evt.data.byteLength === 0) {
         // TODO: figure out why we're receiving some 0-length messages
         return;
@@ -445,10 +429,6 @@ class WebSocketTransport {
       console.error(evt);
       onError(evt);
     };
-
-    const tunConfig = await ready;
-
-    return tunConfig;
   }
 
   onFrame(onFrameCb) {
