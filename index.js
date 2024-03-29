@@ -335,7 +335,11 @@ class Stream {
 
   async _attemptSend(data) {
     if (this._done) {
-      return;
+      // TODO: there's probably a way to simplify our logic by combining this
+      // with the promise below
+      return new Promise((resolve, reject) => {
+        reject();
+      });
     }
 
     if (data.length <= this._windowSize) {
