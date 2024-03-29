@@ -12,6 +12,7 @@ const STATE_RECEIVING_FRAME = 1;
 const MUXADO_HEADER_SIZE = 8;
 
 const DEFAULT_WINDOW_SIZE = 256*1024;
+const MAX_CHUNK_SIZE = 64*1024;
 
 
 class WebTransport {
@@ -261,8 +262,20 @@ class Stream {
         stream._writableController = controller;
       },
 
-      write(chunk, controller) {
-        return stream._attemptSend(chunk);
+      async write(chunk, controller) {
+
+        if (chunk.byteLength <= MAX_CHUNK_SIZE) {
+          return stream._attemptSend(chunk);
+        }
+        else {
+          const numChunks = chunk.byteLength / MAX_CHUNK_SIZE;
+
+          for (let i = 0; i < numChunks; i++) {
+            const offset = i*MAX_CHUNK_SIZE;
+            const subchunk = chunk.slice(offset, offset+MAX_CHUNK_SIZE);
+            await stream._attemptSend(subchunk);
+          }
+        }
       },
 
       close() {
@@ -325,7 +338,7 @@ class Stream {
       return;
     }
 
-    if (data.length < this._windowSize) {
+    if (data.length <= this._windowSize) {
       this._writeCallback(this._streamId, data);
       this._windowSize -= data.length;
       this._windowResolve = null;
