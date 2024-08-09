@@ -34,6 +34,10 @@ class WebTransport {
   get incomingBidirectionalStreams() {
     return this._conn.incomingBidirectionalStreams;
   }
+
+  createBidirectionalStream() {
+    return this._conn.open();
+  }
 }
 
 async function connect(config) {
@@ -437,6 +441,8 @@ class WebSocketTransport {
       console.error(evt);
       onError(evt);
     };
+
+    return ready;
   }
 
   onFrame(onFrameCb) {
