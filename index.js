@@ -19,12 +19,8 @@ class WebTransport {
   constructor(uri) {
     this._readyPromise = new Promise(async (resolve, reject) => {
 
-      const parsedUri = new URL(uri);
-      const params = new URLSearchParams(parsedUri.search);
-
       this._conn = await connect({
-        serverDomain: parsedUri.host,
-        token: params.get('token'),
+        uri,
       });
 
       resolve();
@@ -42,9 +38,7 @@ class WebTransport {
 
 async function connect(config) {
   const transport = new WebSocketTransport({
-    serverDomain: config.serverDomain,
-    token: config.token,
-    terminationType: 'server',
+    uri: config.uri,
   });
 
   await transport.connect();
@@ -382,8 +376,9 @@ class WebSocketTransport {
     //  WS = WebSocket;
     //}
 
-    const c = this._config;
-    const uri = `wss://${c.serverDomain}/waygate?token=${c.token}&termination-type=${c.terminationType}`;
+    const parsedUri = new URL(this._config.uri);
+    const scheme = parsedUri.protocol === 'https:' ? 'wss://' : 'ws://';
+    const uri = `${scheme}${parsedUri.host}${parsedUri.pathname}${parsedUri.search}`;
     const ws = new WS(uri);
     this._ws = ws;
     ws.binaryType = 'arraybuffer';
@@ -545,7 +540,7 @@ function unpackUint32(data) {
 //  return (typeof process !== 'undefined' && process.release.name === 'node');
 //}
 
-export {
+export default {
   connect,
   WebTransport,
 };
