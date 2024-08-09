@@ -9,7 +9,7 @@ const DATAGRAM_STREAM_ID = 0;
 const STATE_WAITING_FOR_FRAME = 0;
 const STATE_RECEIVING_FRAME = 1;
 
-const MUXADO_HEADER_SIZE = 8;
+const HEADER_SIZE = 8;
 
 const DEFAULT_WINDOW_SIZE = 256*1024;
 const MAX_CHUNK_SIZE = 64*1024;
@@ -475,7 +475,7 @@ function packFrame(frame) {
   const flags = (synBit << 1) | finBit;
 
   const f = frame;
-  const buf = new Uint8Array(MUXADO_HEADER_SIZE + length);
+  const buf = new Uint8Array(HEADER_SIZE + length);
   buf[0] = length >> 16;
   buf[1] = length >> 8;
   buf[2] = length;
@@ -486,7 +486,7 @@ function packFrame(frame) {
   buf[7] = frame.streamId;
 
   if (frame.data !== undefined) {
-    buf.set(frame.data, MUXADO_HEADER_SIZE);
+    buf.set(frame.data, HEADER_SIZE);
   }
 
   switch (frame.type) {
@@ -520,7 +520,7 @@ function unpackFrame(frameArray) {
     bytesReceived: 0,
   };
 
-  const data = frameArray.slice(MUXADO_HEADER_SIZE);
+  const data = frameArray.slice(HEADER_SIZE);
   frame.data = new Uint8Array(length);
   frame.data.set(data, 0);
   frame.bytesReceived = data.length;
