@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:;base64,=">
+  </head>
+
+  <body>
+    <form method='GET'>
+      <label for='server-uri-input'>Server URI:</label>
+      <input id='server-uri-input' type='text' name='server-uri' />
+      <button id='run-button' type='submit'>Run Tests</button>
+    </form>
+
+    <script type="module">
+      import omnistreams from '../index.js';
+      console.log(omnistreams);
+
+      const runBtn = document.querySelector('#run-button');
+      runBtn.addEventListener('click', (evt) => {
+        evt.preventDefault();
+        run();
+      });
+
+      const serverUriInput = document.querySelector('#server-uri-input');
+
+      async function run() {
+        const serverUriStr = serverUriInput.value;
+        const serverUri = new URL(serverUriStr);
+        console.log(serverUri);
+
+        console.log(serverUriStr);
+        const conn = new omnistreams.WebTransport(serverUriStr);
+
+        await conn.ready;
+        //for await (const stream of conn.incomingBidirectionalStreams) {
+        //  console.log(stream);
+        //}
+
+        const enc = new TextEncoder();
+
+        const stream = await conn.createBidirectionalStream();
+        const writer = stream.writable.getWriter();
+        await writer.write(enc.encode("Hi there"));
+      }
+
+      run();
+    </script>
+  </body>
+</html>
