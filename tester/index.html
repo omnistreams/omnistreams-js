@@ -25,16 +25,20 @@
       import { run } from './index.js';
 
       const serverUriInput = document.querySelector('#server-uri-input');
-      const serverUri = serverUriInput.value;
       const concurrentInput = document.querySelector('#concurrent-flag-input');
+
+      const serverUriParam = new URLSearchParams(location.search).get('server-uri');
+      if (serverUriParam) {
+        serverUriInput.value = serverUriParam;
+      }
 
       const runBtn = document.querySelector('#run-button');
       runBtn.addEventListener('click', (evt) => {
         evt.preventDefault();
-        run(serverUri, concurrentInput.checked);
+        run(serverUriInput.value, concurrentInput.checked);
       });
 
-      run(serverUri, concurrentInput.checked);
+      run(serverUriInput.value, concurrentInput.checked);
 
     </script>
   </body>

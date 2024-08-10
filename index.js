@@ -12,15 +12,28 @@ const STATE_RECEIVING_FRAME = 1;
 const HEADER_SIZE = 8;
 
 const DEFAULT_WINDOW_SIZE = 256*1024;
+// TODO: Firefox and Deno both fail to notice if the chunk size is too big.
+// The server side throws an error and closes the connection but the clients
+// exit without any exceptions.
 const MAX_CHUNK_SIZE = 64*1024;
 
 
 class WebTransport {
   constructor(uri) {
+
+    this._closedPromise = new Promise((resolve, reject) => {
+      this._closeSuccess = resolve;
+      this._closeFail = reject;
+    });
+
     this._readyPromise = new Promise(async (resolve, reject) => {
 
       this._conn = await connect({
         uri,
+      });
+
+      this._conn.onError((e) => {
+        this._closeFail(e);
       });
 
       resolve();
@@ -29,6 +42,10 @@ class WebTransport {
 
   get ready() {
     return this._readyPromise;
+  }
+
+  get closed() {
+    return this._closedPromise;
   }
 
   get incomingBidirectionalStreams() {
@@ -69,6 +86,11 @@ class Client {
     const incomingWriter = ts.writable.getWriter();
 
     this._transport = config.transport;
+    this._transport.onError((e) => {
+      if (this._errorCallback) {
+        this._errorCallback(e);
+      }
+    });
 
     const writeCallback = (streamId, data) => {
 
@@ -216,6 +238,10 @@ class Client {
 
   close() {
     this._transport.close();
+  }
+
+  onError(callback) {
+    this._errorCallback = callback;
   }
 }
 
@@ -373,10 +399,10 @@ class WebSocketTransport {
   async connect() {
 
     let onReady;
-    let onError;
+    let onConnectError;
     const ready = new Promise((resolve, reject) => {
       onReady = resolve;
-      onError = reject;
+      onConnectError = reject;
     });
 
     let WS;
@@ -399,6 +425,7 @@ class WebSocketTransport {
     let frame;
 
     ws.onopen = (evt) => {
+      onConnectError = null;
       onReady();
     };
 
@@ -442,12 +469,16 @@ class WebSocketTransport {
     };
 
     ws.onclose = (evt) => {
-      //console.log(evt);
+      console.log("Connection closed");
     };
 
     ws.onerror = (evt) => {
-      console.error(evt);
-      onError(evt);
+      if (onConnectError) {
+        onConnectError(evt);
+      }
+      if (this._errorCallback) {
+        this._errorCallback(evt);
+      }
     };
 
     return ready;
@@ -468,6 +499,10 @@ class WebSocketTransport {
 
   close() {
     this._ws.close();
+  }
+
+  onError(callback) {
+    this._errorCallback = callback;
   }
 }
 
