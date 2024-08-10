@@ -6,6 +6,7 @@ const TestTypeMimic = 2;
 
 async function run(serverUri) {
 
+  // TODO: turn connection initiation into a test
   const conn = new omnistreams.WebTransport(serverUri);
 
   await conn.ready;
@@ -16,6 +17,9 @@ async function run(serverUri) {
   await consumeTest(conn, "Hi there");
   await echoTest(conn, "Hi there");
   await mimicTest(conn, "Hi there");
+
+  // TODO: turn close() into a test
+  conn.close();
 
   async function consumeTest(conn, data) {
     const stream = await conn.createBidirectionalStream();

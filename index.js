@@ -38,6 +38,10 @@ class WebTransport {
   createBidirectionalStream() {
     return this._conn.open();
   }
+
+  close() {
+    this._conn.close();
+  }
 }
 
 async function connect(config) {
@@ -208,6 +212,10 @@ class Client {
 
   get datagrams() {
     return this._datagramStream;
+  }
+
+  close() {
+    this._transport.close();
   }
 }
 
@@ -456,6 +464,10 @@ class WebSocketTransport {
     //console.log("Send frame", frame);
     const buf = packFrame(frame); 
     this._ws.send(buf);
+  }
+
+  close() {
+    this._ws.close();
   }
 }
 
