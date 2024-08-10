@@ -14,38 +14,21 @@
     </form>
 
     <script type="module">
-      import omnistreams from '../index.js';
-      console.log(omnistreams);
+      import { run } from './index.js';
+
+      const serverUriInput = document.querySelector('#server-uri-input');
+      const serverUri = serverUriInput.value;
+      //const serverUri = new URL(serverUriStr);
+      //console.log(serverUri);
 
       const runBtn = document.querySelector('#run-button');
       runBtn.addEventListener('click', (evt) => {
         evt.preventDefault();
-        run();
+        run(serverUri);
       });
 
-      const serverUriInput = document.querySelector('#server-uri-input');
+      run(serverUri);
 
-      async function run() {
-        const serverUriStr = serverUriInput.value;
-        const serverUri = new URL(serverUriStr);
-        console.log(serverUri);
-
-        console.log(serverUriStr);
-        const conn = new omnistreams.WebTransport(serverUriStr);
-
-        await conn.ready;
-        //for await (const stream of conn.incomingBidirectionalStreams) {
-        //  console.log(stream);
-        //}
-
-        const enc = new TextEncoder();
-
-        const stream = await conn.createBidirectionalStream();
-        const writer = stream.writable.getWriter();
-        await writer.write(enc.encode("Hi there"));
-      }
-
-      run();
     </script>
   </body>
 </html>
