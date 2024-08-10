@@ -4,7 +4,7 @@ const TestTypeConsume = 0;
 const TestTypeEcho = 1;
 const TestTypeMimic = 2;
 
-async function run(serverUri) {
+async function run(serverUri, concurrent) {
 
   // TODO: turn connection initiation into a test
   const conn = new omnistreams.WebTransport(serverUri);
@@ -14,14 +14,63 @@ async function run(serverUri) {
   const enc = new TextEncoder();
   const dec = new TextDecoder();
 
-  await consumeTest(conn, "Hi there");
-  await echoTest(conn, "Hi there");
-  await mimicTest(conn, "Hi there");
+  const testQueue = [];
+
+  test('Basic consume', async () => {
+    await consumeTest(conn, "Hi there");
+  });
+
+  test('Basic echo', async () => {
+    await echoTest(conn, "Hi there");
+  });
+
+  test('Basic mimic', async () => {
+    await mimicTest(conn, "Hi there");
+  });
+
+  if (concurrent) {
+    await runTestsConcurrent();
+  }
+  else {
+    await runTests();
+  }
 
   // TODO: turn close() into a test
-  conn.close();
+  await conn.close();
+
+  async function test(description, callback) {
+    testQueue.push({ description, callback });
+  }
+
+  async function runTests() {
+    for (const test of testQueue) {
+      await runTest(test); 
+    }
+  }
+
+  async function runTestsConcurrent() {
+    const promises = [];
+    for (const test of testQueue) {
+      promises.push(runTest(test)); 
+    }
+    await Promise.all(promises);
+  }
+
+  async function runTest(test) {
+    try {
+      await test.callback();
+      console.log('PASS -- ' + test.description);
+    }
+    catch (e) {
+      console.error('FAIL -- ' + test.description);
+      console.group();
+      console.error(e);
+      console.groupEnd();
+    }
+  }
 
   async function consumeTest(conn, data) {
+    //await sleep(300);
     const stream = await conn.createBidirectionalStream();
     const writer = stream.writable.getWriter();
     await writer.ready;
@@ -91,6 +140,14 @@ function arraysEqual(a1, a2) {
 
 function concatArrays(a1, a2) {
   return new Uint8Array([...a1, ...a2]);
+}
+
+async function sleep(ms) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      resolve();
+    }, ms);
+  });
 }
 
 export {

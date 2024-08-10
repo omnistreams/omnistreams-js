@@ -8,9 +8,17 @@
 
   <body>
     <form method='GET'>
-      <label for='server-uri-input'>Server URI:</label>
-      <input id='server-uri-input' type='text' name='server-uri' />
-      <button id='run-button' type='submit'>Run Tests</button>
+      <div>
+        <label for='server-uri-input'>Server URI:</label>
+        <input id='server-uri-input' type='text' name='server-uri' />
+      </div>
+      <div>
+        <label for='concurrent-flag-input'>Concurrent:</label>
+        <input id='concurrent-flag-input' type='checkbox' name='concurrent-flag' />
+      </div>
+      <div>
+        <button id='run-button' type='submit'>Run Tests</button>
+      </div>
     </form>
 
     <script type="module">
@@ -18,16 +26,15 @@
 
       const serverUriInput = document.querySelector('#server-uri-input');
       const serverUri = serverUriInput.value;
-      //const serverUri = new URL(serverUriStr);
-      //console.log(serverUri);
+      const concurrentInput = document.querySelector('#concurrent-flag-input');
 
       const runBtn = document.querySelector('#run-button');
       runBtn.addEventListener('click', (evt) => {
         evt.preventDefault();
-        run(serverUri);
+        run(serverUri, concurrentInput.checked);
       });
 
-      run(serverUri);
+      run(serverUri, concurrentInput.checked);
 
     </script>
   </body>
