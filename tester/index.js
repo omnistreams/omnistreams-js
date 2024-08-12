@@ -4,6 +4,8 @@ const TestTypeConsume = 0;
 const TestTypeEcho = 1;
 const TestTypeMimic = 2;
 
+const TimeoutMs = 2000;
+
 async function run(serverUri, concurrent) {
 
   // TODO: turn connection initiation into a test
@@ -18,12 +20,17 @@ async function run(serverUri, concurrent) {
   })();
 
   await conn.ready;
+  const streamReader = conn.incomingBidirectionalStreams.getReader();
 
   const enc = new TextEncoder();
   const dec = new TextDecoder();
 
   const bigData = new Uint8Array(10*1024*1024);
-  bigData.fill(42);
+
+  for (let i=0; i<bigData.length; i++) {
+    bigData[i] = i;
+  }
+  //bigData.fill(42);
 
   const testQueue = [];
 
@@ -42,6 +49,14 @@ async function run(serverUri, concurrent) {
   test('Basic mimic', async () => {
     await mimicTest(conn, enc.encode("Hi there"));
   });
+
+  test('Large echo', async () => {
+    await echoTest(conn, bigData);
+  });
+
+  //test('Large mimic', async () => {
+  //  await mimicTest(conn, bigData);
+  //});
 
   if (concurrent) {
     await runTestsConcurrent();
@@ -72,13 +87,25 @@ async function run(serverUri, concurrent) {
   }
 
   async function runTest(test) {
+
+    let timeoutId;
+    const timeoutPromise = new Promise((resolve, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error("Timeout"));
+      }, TimeoutMs);
+    });
+
     try {
-      await test.callback();
+
+      await Promise.race([ test.callback(), timeoutPromise ]);
+
+      clearTimeout(timeoutId);
+
       console.log('PASS -- ' + test.description);
     }
     catch (e) {
       console.error('FAIL -- ' + test.description);
-      console.group();
+      console.group(test.description);
       console.error(e);
       console.groupEnd();
     }
@@ -100,14 +127,21 @@ async function run(serverUri, concurrent) {
     const writer = stream.writable.getWriter();
 
     const wireData = buildData(TestTypeEcho, data);
+
     const expectData = wireData.slice(1);
 
-    await writer.ready;
-    await writer.write(wireData);
+    (async () => {
+      await writer.ready;
+      await writer.write(wireData);
 
-    await writer.ready;
-    await writer.close();
+      await writer.ready;
+      await writer.close();
+    })();
 
+    // TODO: consider creating echoData with size expectData.length and using
+    // Uint8Array.set() to append. Not sure if comparing would be faster than
+    // allocating (since comparing can shortcut if sizes are different, but I
+    // suspect it would be much faster.
     let echoData = new Uint8Array();
     for await (const chunk of stream.readable) {
       echoData = concatArrays(echoData, chunk);
@@ -129,7 +163,6 @@ async function run(serverUri, concurrent) {
       await writer.write(wireData);
     })();
 
-    const streamReader = conn.incomingBidirectionalStreams.getReader();
     const res = await streamReader.read();
     const responseStream = res.value;
 
@@ -159,15 +192,17 @@ function arraysEqual(a1, a2) {
 }
 
 function concatArrays(a1, a2) {
-  return new Uint8Array([...a1, ...a2]);
+  // TODO: slow. Use Uint8Array.set()
+  const catted = new Uint8Array(a1.length + a2.length);
+  catted.set(a1);
+  catted.set(a2, a1.length);
+  return catted;
 }
 
 function buildData(type, data) {
 
-  const arr = new Uint8Array([...data]);
-
   let valid = false;
-  for (const elem of arr) {
+  for (const elem of data) {
     if (elem !== 0) {
       valid = true;
       break;
@@ -178,7 +213,11 @@ function buildData(type, data) {
     throw new Error("Data is invalid");
   }
 
-  return new Uint8Array([type, ...arr]);
+  const catted = new Uint8Array(1 + data.length);
+  catted[0] = type;
+  catted.set(data, 1);
+
+  return catted;
 }
 
 async function sleep(ms) {

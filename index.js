@@ -4,7 +4,7 @@ const FRAME_TYPE_WNDINC = 0x02;
 const FRAME_TYPE_GOAWAY = 0x03;
 const FRAME_TYPE_MESSAGE = 0x04;
 
-const DATAGRAM_STREAM_ID = 0;
+//const DATAGRAM_STREAM_ID = 0;
 
 const STATE_WAITING_FOR_FRAME = 0;
 const STATE_RECEIVING_FRAME = 1;
@@ -102,7 +102,8 @@ class Client {
       }
 
       this._transport.writeFrame({
-        type: streamId === DATAGRAM_STREAM_ID ? FRAME_TYPE_MESSAGE : FRAME_TYPE_DATA,
+        //type: streamId === DATAGRAM_STREAM_ID ? FRAME_TYPE_MESSAGE : FRAME_TYPE_DATA,
+        type: FRAME_TYPE_DATA,
         fin: false,
         syn: syn,
         streamId: streamId,
@@ -113,9 +114,9 @@ class Client {
 
     const closeCallback = (streamId) => {
 
-      if (streamId === DATAGRAM_STREAM_ID) {
-        throw new Error("Attempted to close datagram stream");
-      }
+      //if (streamId === DATAGRAM_STREAM_ID) {
+      //  throw new Error("Attempted to close datagram stream");
+      //}
 
       this._transport.writeFrame({
         type: FRAME_TYPE_DATA,
@@ -209,8 +210,8 @@ class Client {
     });
 
 
-    this._datagramStream = new Stream(DATAGRAM_STREAM_ID, writeCallback, closeCallback, windowCallback);
-    this._streams[DATAGRAM_STREAM_ID] = this._datagramStream;
+    //this._datagramStream = new Stream(DATAGRAM_STREAM_ID, writeCallback, closeCallback, windowCallback);
+    //this._streams[DATAGRAM_STREAM_ID] = this._datagramStream;
   }
 
   open() {
@@ -232,9 +233,9 @@ class Client {
     return this._incomingStreams;
   }
 
-  get datagrams() {
-    return this._datagramStream;
-  }
+  //get datagrams() {
+  //  return this._datagramStream;
+  //}
 
   close() {
     this._transport.close();
@@ -270,9 +271,10 @@ class Stream {
       pull(controller) {
 
         if (stream._queue.length === 0) {
-          return new Promise((resolve, reject) => {
+          const promise = new Promise((resolve, reject) => {
             stream._queueResolve = resolve;
           });
+          return promise;
         }
         else {
           const chunk = stream._queue.shift()
@@ -486,13 +488,15 @@ class WebSocketTransport {
 
   onFrame(onFrameCb) {
     this.onFrameCb = (frame) => {
-      //console.log("Receive frame", frame);
+      //console.log("Receive frame");
+      //printFrame(frame);
       onFrameCb(frame);
     }
   }
 
   writeFrame(frame) {
-    //console.log("Send frame", frame);
+    //console.log("Send frame");
+    //printFrame(frame);
     const buf = packFrame(frame); 
     this._ws.send(buf);
   }
@@ -592,6 +596,41 @@ function unpackUint32(data) {
 //function isNode() {
 //  return (typeof process !== 'undefined' && process.release.name === 'node');
 //}
+
+function printFrame(f) {
+
+  console.log("frame: {");
+
+  let frameTypeStr;
+  switch (f.type) {
+    case FRAME_TYPE_DATA:
+      frameTypeStr = 'FRAME_TYPE_DATA';
+      console.log(`  type: ${frameTypeStr},`);
+      console.log(`  streamId: ${f.streamId},`);
+      console.log(`  fin: ${f.fin ? 1 : 0},`);
+      console.log(`  syn: ${f.syn ? 1 : 0},`);
+      if (f.data) {
+        console.log(`  data: [ ${f.data.slice(0, 10)} ... ${f.data.slice(-10)} ],`);
+      }
+      console.log(`  length: ${f.length},`);
+      break;
+    case FRAME_TYPE_WNDINC:
+      frameTypeStr = 'FRAME_TYPE_WNDINC';
+      console.log(`  type: ${frameTypeStr},`);
+      console.log(`  streamId: ${f.streamId},`);
+      console.log(`  windowIncrease: ${f.windowIncrease},`);
+      break;
+    case FRAME_TYPE_RST:
+      frameTypeStr = 'FRAME_TYPE_RST';
+      console.log(`  type: ${frameTypeStr},`);
+      console.log(`  streamId: ${f.streamId},`);
+      break;
+    default:
+      frameTypeStr = "Unknown frame type";
+      break;
+  }
+  console.log("}");
+}
 
 export default {
   connect,
