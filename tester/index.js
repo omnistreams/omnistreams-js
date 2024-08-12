@@ -83,6 +83,19 @@ async function run(serverUri, concurrent) {
     await mimicTest(conn, enc.encode("Hi there"));
   });
 
+  test(`Mimic 1/2 window size (${dataHalfWindow.length} bytes)`, async () => {
+    await mimicTest(conn, dataHalfWindow);
+  });
+
+  test(`Mimic 1x window size (${dataOneWindow.length} bytes)`, async () => {
+    await mimicTest(conn, dataOneWindow);
+  });
+
+  test(`Mimic 2x window size (${dataTwoWindow.length} bytes)`, async () => {
+    await mimicTest(conn, dataTwoWindow);
+  });
+
+
   test('Large mimic', async () => {
     await mimicTest(conn, bigData);
   });
