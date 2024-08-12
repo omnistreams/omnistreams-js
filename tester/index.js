@@ -6,6 +6,8 @@ const TestTypeMimic = 2;
 
 const TimeoutMs = 2000;
 
+const WINDOW_SIZE = 256*1024;
+
 async function run(serverUri, concurrent) {
 
   // TODO: turn connection initiation into a test
@@ -25,17 +27,32 @@ async function run(serverUri, concurrent) {
   const enc = new TextEncoder();
   const dec = new TextDecoder();
 
-  const bigData = new Uint8Array(10*1024*1024);
+  const dataHalfWindow = new Uint8Array(WINDOW_SIZE / 2);
+  initArray(dataHalfWindow);
+  const dataOneWindow = new Uint8Array(1*WINDOW_SIZE);
+  initArray(dataOneWindow);
+  const dataTwoWindow = new Uint8Array(2*WINDOW_SIZE);
+  initArray(dataTwoWindow);
 
-  for (let i=0; i<bigData.length; i++) {
-    bigData[i] = i;
-  }
-  //bigData.fill(42);
+  const bigData = new Uint8Array(1*1024*1024);
+  initArray(bigData);
 
   const testQueue = [];
 
   test('Basic consume', async () => {
     await consumeTest(conn, enc.encode("Hi there"));
+  });
+
+  test(`Consume 1/2 window size (${dataHalfWindow.length} bytes)`, async () => {
+    await consumeTest(conn, dataHalfWindow);
+  });
+
+  test(`Consume 1x window size (${dataOneWindow.length} bytes)`, async () => {
+    await consumeTest(conn, dataOneWindow);
+  });
+
+  test(`Consume 2x window size (${dataTwoWindow.length} bytes)`, async () => {
+    await consumeTest(conn, dataTwoWindow);
   });
 
   test('Large consume', async () => {
@@ -46,17 +63,29 @@ async function run(serverUri, concurrent) {
     await echoTest(conn, enc.encode("Hi there"));
   });
 
-  test('Basic mimic', async () => {
-    await mimicTest(conn, enc.encode("Hi there"));
+  test(`Echo 1/2 window size (${dataHalfWindow.length} bytes)`, async () => {
+    await echoTest(conn, dataHalfWindow);
+  });
+
+  test(`Echo 1x window size (${dataOneWindow.length} bytes)`, async () => {
+    await echoTest(conn, dataOneWindow);
+  });
+
+  test(`Echo 2x window size (${dataTwoWindow.length} bytes)`, async () => {
+    await echoTest(conn, dataTwoWindow);
   });
 
   test('Large echo', async () => {
     await echoTest(conn, bigData);
   });
 
-  //test('Large mimic', async () => {
-  //  await mimicTest(conn, bigData);
-  //});
+  test('Basic mimic', async () => {
+    await mimicTest(conn, enc.encode("Hi there"));
+  });
+
+  test('Large mimic', async () => {
+    await mimicTest(conn, bigData);
+  });
 
   if (concurrent) {
     await runTestsConcurrent();
@@ -226,6 +255,12 @@ async function sleep(ms) {
       resolve();
     }, ms);
   });
+}
+
+function initArray(a) {
+  for (let i=0; i<a.length; i++) {
+    a[i] = i;
+  }
 }
 
 export {
