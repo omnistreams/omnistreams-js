@@ -87,12 +87,17 @@ async function run(serverUri, concurrent) {
     await mimicTest(conn, bigData);
   });
 
+  const startTime = performance.now();
+
   if (concurrent) {
     await runTestsConcurrent();
   }
   else {
     await runTests();
   }
+
+  const duration = (performance.now() - startTime) / 1000;
+  console.log(`Ran in ${duration} seconds`);
 
   // TODO: turn close() into a test
   await conn.close();
