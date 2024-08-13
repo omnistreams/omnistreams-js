@@ -4,7 +4,7 @@ const TestTypeConsume = 0;
 const TestTypeEcho = 1;
 const TestTypeMimic = 2;
 
-const TimeoutMs = 2000;
+const TimeoutMs = 1000;
 
 const WINDOW_SIZE = 256*1024;
 
@@ -34,73 +34,72 @@ async function run(serverUri, concurrent) {
   const dataTwoWindow = new Uint8Array(2*WINDOW_SIZE);
   initArray(dataTwoWindow);
 
-  const bigData = new Uint8Array(1*1024*1024);
+  const bigData = new Uint8Array(10*1024*1024);
   initArray(bigData);
 
   const testQueue = [];
 
-  test('Basic consume', async () => {
-    await consumeTest(conn, enc.encode("Hi there"));
+  test('Basic consume', () => {
+    return consumeTest(conn, enc.encode("Hi there"));
   });
 
-  test(`Consume 1/2 window size (${dataHalfWindow.length} bytes)`, async () => {
-    await consumeTest(conn, dataHalfWindow);
+  test(`Consume 1/2 window size (${dataHalfWindow.length} bytes)`, () => {
+    return consumeTest(conn, dataHalfWindow);
   });
 
-  test(`Consume 1x window size (${dataOneWindow.length} bytes)`, async () => {
-    await consumeTest(conn, dataOneWindow);
+  test(`Consume 1x window size (${dataOneWindow.length} bytes)`, () => {
+    return consumeTest(conn, dataOneWindow);
   });
 
-  test(`Consume 2x window size (${dataTwoWindow.length} bytes)`, async () => {
-    await consumeTest(conn, dataTwoWindow);
+  test(`Consume 2x window size (${dataTwoWindow.length} bytes)`, () => {
+    return consumeTest(conn, dataTwoWindow);
   });
 
-  test('Large consume', async () => {
-    await consumeTest(conn, bigData);
+  test('Large consume', () => {
+    return consumeTest(conn, bigData);
   });
 
-  test('Basic echo', async () => {
-    await echoTest(conn, enc.encode("Hi there"));
+  test('Basic echo', () => {
+    return echoTest(conn, enc.encode("Hi there"));
   });
 
-  test(`Echo 1/2 window size (${dataHalfWindow.length} bytes)`, async () => {
-    await echoTest(conn, dataHalfWindow);
+  test(`Echo 1/2 window size (${dataHalfWindow.length} bytes)`, () => {
+    return echoTest(conn, dataHalfWindow);
   });
 
-  test(`Echo 1x window size (${dataOneWindow.length} bytes)`, async () => {
-    await echoTest(conn, dataOneWindow);
+  test(`Echo 1x window size (${dataOneWindow.length} bytes)`, () => {
+    return echoTest(conn, dataOneWindow);
   });
 
-  test(`Echo 2x window size (${dataTwoWindow.length} bytes)`, async () => {
-    await echoTest(conn, dataTwoWindow);
+  test(`Echo 2x window size (${dataTwoWindow.length} bytes)`, () => {
+    return echoTest(conn, dataTwoWindow);
   });
 
-  test('Large echo', async () => {
-    await echoTest(conn, bigData);
+  test('Large echo', () => {
+    return echoTest(conn, bigData);
   });
 
-  test('Basic mimic', async () => {
-    await mimicTest(conn, enc.encode("Hi there"));
+  test('Basic mimic', () => {
+    return mimicTest(conn, enc.encode("Hi there"));
   });
 
-  test(`Mimic 1/2 window size (${dataHalfWindow.length} bytes)`, async () => {
-    await mimicTest(conn, dataHalfWindow);
+  test(`Mimic 1/2 window size (${dataHalfWindow.length} bytes)`, () => {
+    return mimicTest(conn, dataHalfWindow);
   });
 
-  test(`Mimic 1x window size (${dataOneWindow.length} bytes)`, async () => {
-    await mimicTest(conn, dataOneWindow);
+  test(`Mimic 1x window size (${dataOneWindow.length} bytes)`, () => {
+    return mimicTest(conn, dataOneWindow);
   });
 
-  test(`Mimic 2x window size (${dataTwoWindow.length} bytes)`, async () => {
-    await mimicTest(conn, dataTwoWindow);
+  test(`Mimic 2x window size (${dataTwoWindow.length} bytes)`, () => {
+    return mimicTest(conn, dataTwoWindow);
   });
 
-
-  test('Large mimic', async () => {
-    await mimicTest(conn, bigData);
+  test('Large mimic', () => {
+    return mimicTest(conn, bigData);
   });
 
-  const startTime = performance.now();
+  const stop = stopwatch();
 
   if (concurrent) {
     await runTestsConcurrent();
@@ -109,8 +108,7 @@ async function run(serverUri, concurrent) {
     await runTests();
   }
 
-  const duration = (performance.now() - startTime) / 1000;
-  console.log(`Ran in ${duration} seconds`);
+  console.log(`Ran in ${formatTime(stop())}`);
 
   // TODO: turn close() into a test
   await conn.close();
@@ -142,16 +140,32 @@ async function run(serverUri, concurrent) {
       }, TimeoutMs);
     });
 
+    const stop = stopwatch();
+
     try {
 
-      await Promise.race([ test.callback(), timeoutPromise ]);
+      const testPromise = test.callback();
+      await Promise.race([ testPromise, timeoutPromise ]);
 
       clearTimeout(timeoutId);
 
-      console.log('PASS -- ' + test.description);
+      const results = await testPromise;
+
+      const duration = stop();
+
+      let msg = `PASS - ${test.description} - ${formatTime(duration)}`;
+      if (results && results.bytesReceived) {
+        const bytesPerSec = results.bytesReceived / duration;
+        msg += ` - ${formatThroughput(bytesPerSec)}`;
+      }
+      else if (results && results.bytesSent) {
+        const bytesPerSec = results.bytesSent / duration;
+        msg += ` - ${formatThroughput(bytesPerSec)}`;
+      }
+      console.log(msg);
     }
     catch (e) {
-      console.error('FAIL -- ' + test.description);
+      console.error('FAIL - ' + test.description);
       console.group(test.description);
       console.error(e);
       console.groupEnd();
@@ -159,7 +173,6 @@ async function run(serverUri, concurrent) {
   }
 
   async function consumeTest(conn, data) {
-    //await sleep(300);
     const stream = await conn.createBidirectionalStream();
     const writer = stream.writable.getWriter();
     await writer.ready;
@@ -167,6 +180,10 @@ async function run(serverUri, concurrent) {
     await writer.write(testData);
     await writer.ready;
     await writer.close();
+
+    return {
+      bytesSent: data.length,
+    };
   }
 
   async function echoTest(conn, data) {
@@ -177,6 +194,8 @@ async function run(serverUri, concurrent) {
 
     const expectData = wireData.slice(1);
 
+    const stop = stopwatch();
+
     (async () => {
       await writer.ready;
       await writer.write(wireData);
@@ -185,16 +204,11 @@ async function run(serverUri, concurrent) {
       await writer.close();
     })();
 
-    // TODO: consider creating echoData with size expectData.length and using
-    // Uint8Array.set() to append. Not sure if comparing would be faster than
-    // allocating (since comparing can shortcut if sizes are different, but I
-    // suspect it would be much faster.
-    let echoData = new Uint8Array();
-    for await (const chunk of stream.readable) {
-      echoData = concatArrays(echoData, chunk);
-      if (arraysEqual(echoData, expectData)) {
-        break;
-      }
+    await waitUntilReceived(stream, expectData);
+
+    return {
+      bytesSent: data.length,
+      bytesReceived: data.length,
     }
   }
 
@@ -213,23 +227,42 @@ async function run(serverUri, concurrent) {
     const res = await streamReader.read();
     const responseStream = res.value;
 
-    let mimicData = new Uint8Array();
-    for await (const chunk of responseStream.readable) {
-      mimicData = concatArrays(mimicData, chunk);
-      if (arraysEqual(mimicData, expectData)) {
-        break;
-      }
-    }
+    await waitUntilReceived(responseStream, expectData);
 
     await writer.ready;
     await writer.close();
+
+    return {
+      bytesReceived: data.length,
+    }
   }
+}
+
+function stopwatch() {
+  const startTime = performance.now();
+
+  return () => {
+    return (performance.now() - startTime) / 1000;
+  };
 }
 
 function arraysEqual(a1, a2) {
   if (a1.length !== a2.length) {
     return false;
   }
+
+  // Check several points as a fast smoke test first
+  if (a1[0] !== a2[0] || a1[a1.length-1] !== a2[a2.length-1]) {
+    return false;
+  }
+  const step = (a1.length / 10);
+  for (let i = 0; i < a1.length; i += step) {
+    if (a1[i] !== a2[i]) {
+      return false;
+    }
+  }
+
+  // Compare entire arrays if necessary
   for (let i=0; i<a1.length; i++) {
     if (a1[i] !== a2[i]) {
       return false;
@@ -239,7 +272,6 @@ function arraysEqual(a1, a2) {
 }
 
 function concatArrays(a1, a2) {
-  // TODO: slow. Use Uint8Array.set()
   const catted = new Uint8Array(a1.length + a2.length);
   catted.set(a1);
   catted.set(a2, a1.length);
@@ -278,6 +310,42 @@ async function sleep(ms) {
 function initArray(a) {
   for (let i=0; i<a.length; i++) {
     a[i] = i;
+  }
+}
+
+function formatTime(timeSeconds) {
+  if (timeSeconds > 1) {
+    return `${timeSeconds.toFixed(3)}s`;
+  }
+  else {
+    return `${(timeSeconds*1000).toFixed(3)}ms`;
+  }
+}
+
+function formatThroughput(bytes) {
+  if (bytes > 1*1000*1000*1000) {
+    return (bytes / 1000 / 1000 / 1000).toFixed(2) + " GB/s";
+  }
+  else if (bytes > 1*1000*1000) {
+    return (bytes / 1000 / 1000).toFixed(2) + " MB/s";
+  }
+  else if (bytes > 1*1000) {
+    return (bytes / 1000).toFixed(2) + " KB/s";
+  }
+  return bytes.toFixed(2) + " bytes/s";
+}
+
+async function waitUntilReceived(stream, expectData) {
+  const echoData = new Uint8Array(expectData.length);
+  echoData.fill(42);
+
+  let offset = 0;
+  for await (const chunk of stream.readable) {
+    echoData.set(chunk, offset);
+    offset += chunk.length;
+    if (arraysEqual(echoData, expectData)) {
+      break;
+    }
   }
 }
 
