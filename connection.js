@@ -18,8 +18,8 @@ class Connection {
     this._incomingStreams = ts.readable;
     const incomingWriter = ts.writable.getWriter();
 
-    this._transport = config.transport;
-    this._transport.onError((e) => {
+    this._framer = config.framer;
+    this._framer.onError((e) => {
       if (this._errorCallback) {
         this._errorCallback(e);
       }
@@ -34,7 +34,7 @@ class Connection {
         stream.syn = false;
       }
 
-      this._transport.writeFrame({
+      this._framer.writeFrame({
         //type: streamId === DATAGRAM_STREAM_ID ? FRAME_TYPE_MESSAGE : FRAME_TYPE_DATA,
         type: FRAME_TYPE_DATA,
         fin: false,
@@ -51,7 +51,7 @@ class Connection {
       //  throw new Error("Attempted to close datagram stream");
       //}
 
-      this._transport.writeFrame({
+      this._framer.writeFrame({
         type: FRAME_TYPE_DATA,
         fin: true,
         syn: false,
@@ -61,7 +61,7 @@ class Connection {
     this._closeCallback = closeCallback;
 
     const windowCallback = (streamId, windowIncrease) => {
-      this._transport.writeFrame({
+      this._framer.writeFrame({
         type: FRAME_TYPE_WNDINC,
         streamId,
         windowIncrease,
@@ -69,7 +69,7 @@ class Connection {
     };
     this._windowCallback = windowCallback;
 
-    this._transport.onFrame((frame) => {
+    this._framer.onFrame((frame) => {
 
       let stream;
 
@@ -171,7 +171,7 @@ class Connection {
   //}
 
   close() {
-    this._transport.close();
+    this._framer.close();
   }
 
   onError(callback) {
