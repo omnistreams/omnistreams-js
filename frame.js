@@ -24,47 +24,41 @@ class Framer {
     let state = STATE_WAITING_FOR_FRAME;
     let frame;
 
-    this._writer = transport.writable.getWriter();
+    transport.onMessage((message) => {
 
-    (async () => {
-      for await (const message of transport.readable) {
-
-        const evt = {
-          data: message,
-        };
-
-        switch (state) {
-          case STATE_WAITING_FOR_FRAME:
-            const frameArray = new Uint8Array(evt.data);
-            frame = unpackFrame(frameArray);
-
-            if (frame.bytesReceived < frame.length) {
-              state = STATE_RECEIVING_FRAME;
-            }
-            else {
-              delete frame.bytesReceived;
-              this.onFrameCb(frame);
-            }
-
-            break;
-          case STATE_RECEIVING_FRAME:
-            const arr = new Uint8Array(evt.data);
-            frame.data.set(arr, frame.bytesReceived);
-            // TODO: make sure we're properly handling frames split across multiple websocket messages
-            frame.bytesReceived += evt.data.length;
-
-            if (frame.data.length === frame.length) {
-              state = STATE_WAITING_FOR_FRAME;
-              delete frame.bytesReceived;
-              this.onFrameCb(frame);
-            }
-
-            break;
-        }
+      const evt = {
+        data: message,
       };
 
-      this._writer.close();
-    })();
+      switch (state) {
+        case STATE_WAITING_FOR_FRAME:
+          const frameArray = new Uint8Array(evt.data);
+          frame = unpackFrame(frameArray);
+
+          if (frame.bytesReceived < frame.length) {
+            state = STATE_RECEIVING_FRAME;
+          }
+          else {
+            delete frame.bytesReceived;
+            this.onFrameCb(frame);
+          }
+
+          break;
+        case STATE_RECEIVING_FRAME:
+          const arr = new Uint8Array(evt.data);
+          frame.data.set(arr, frame.bytesReceived);
+          // TODO: make sure we're properly handling frames split across multiple websocket messages
+          frame.bytesReceived += evt.data.length;
+
+          if (frame.data.length === frame.length) {
+            state = STATE_WAITING_FOR_FRAME;
+            delete frame.bytesReceived;
+            this.onFrameCb(frame);
+          }
+
+          break;
+      }
+    });
 
     (async () => {
       try {
@@ -95,7 +89,7 @@ class Framer {
     //console.log("Send frame");
     //printFrame(frame);
     const buf = packFrame(frame); 
-    this._writer.write(buf);
+    this._transport.send(buf);
   }
 
   close() {

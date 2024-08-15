@@ -7,17 +7,17 @@ class WebSocketClientTransport {
     return this._readyPromise;
   }
 
-  get readable() {
-    return this._recvStream.readable;
-  }
-
-  get writable() {
-    return this._sendStream.writable;
-  }
-
   get closed() {
     return this._closedPromise;
   }
+
+  send(msg) {
+    this._ws.send(msg);
+  }
+
+  onMessage(callback) {
+    this._onMessageCallback = callback;
+  };
 
   close() {
     this._ws.close();
@@ -43,19 +43,6 @@ class WebSocketClientTransport {
       onReady();
     };
 
-    this._recvStream = new TransformStream();
-    const recvWriter = this._recvStream.writable.getWriter();
-
-    this._sendStream = new TransformStream();
-    
-    // TODO: seems pretty easy to leak this inline async functions. Maybe a
-    // traditional EvenTarget design would be better?
-    (async () => {
-      for await (const chunk of this._sendStream.readable) {
-        ws.send(chunk);
-      }
-    })();
-
     ws.onmessage = async (evt) => {
 
       if (evt.data.byteLength === 0) {
@@ -63,8 +50,7 @@ class WebSocketClientTransport {
         return;
       }
 
-      await recvWriter;
-      await recvWriter.write(new Uint8Array(evt.data));
+      this._onMessageCallback(new Uint8Array(evt.data));
     };
 
     this._closedPromise = new Promise((resolve, reject) => {
@@ -74,7 +60,6 @@ class WebSocketClientTransport {
 
     ws.onclose = (evt) => {
       this._closeSuccess(evt);
-      recvWriter.close();
     };
 
     ws.onerror = (evt) => {
