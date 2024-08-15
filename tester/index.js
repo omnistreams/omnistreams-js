@@ -43,15 +43,15 @@ async function run(serverUri, concurrent) {
     return consumeTest(conn, enc.encode("Hi there"));
   });
 
-  test(`Consume 1/2 window size (${dataHalfWindow.length} bytes)`, () => {
+  test(`Consume 1/2 window size`, () => {
     return consumeTest(conn, dataHalfWindow);
   });
 
-  test(`Consume 1x window size (${dataOneWindow.length} bytes)`, () => {
+  test(`Consume 1x window size`, () => {
     return consumeTest(conn, dataOneWindow);
   });
 
-  test(`Consume 2x window size (${dataTwoWindow.length} bytes)`, () => {
+  test(`Consume 2x window size`, () => {
     return consumeTest(conn, dataTwoWindow);
   });
 
@@ -63,15 +63,15 @@ async function run(serverUri, concurrent) {
     return echoTest(conn, enc.encode("Hi there"));
   });
 
-  test(`Echo 1/2 window size (${dataHalfWindow.length} bytes)`, () => {
+  test(`Echo 1/2 window size`, () => {
     return echoTest(conn, dataHalfWindow);
   });
 
-  test(`Echo 1x window size (${dataOneWindow.length} bytes)`, () => {
+  test(`Echo 1x window size`, () => {
     return echoTest(conn, dataOneWindow);
   });
 
-  test(`Echo 2x window size (${dataTwoWindow.length} bytes)`, () => {
+  test(`Echo 2x window size`, () => {
     return echoTest(conn, dataTwoWindow);
   });
 
@@ -83,15 +83,15 @@ async function run(serverUri, concurrent) {
     return mimicTest(conn, enc.encode("Hi there"));
   });
 
-  test(`Mimic 1/2 window size (${dataHalfWindow.length} bytes)`, () => {
+  test(`Mimic 1/2 window size`, () => {
     return mimicTest(conn, dataHalfWindow);
   });
 
-  test(`Mimic 1x window size (${dataOneWindow.length} bytes)`, () => {
+  test(`Mimic 1x window size`, () => {
     return mimicTest(conn, dataOneWindow);
   });
 
-  test(`Mimic 2x window size (${dataTwoWindow.length} bytes)`, () => {
+  test(`Mimic 2x window size`, () => {
     return mimicTest(conn, dataTwoWindow);
   });
 
@@ -156,11 +156,11 @@ async function run(serverUri, concurrent) {
       let msg = `PASS - ${test.description} - ${formatTime(duration)}`;
       if (results && results.bytesReceived) {
         const bytesPerSec = results.bytesReceived / duration;
-        msg += ` - ${formatThroughput(bytesPerSec)}`;
+        msg += ` - ${formatBytes(results.bytesReceived)} - ${formatBytes(bytesPerSec)}/s`;
       }
       else if (results && results.bytesSent) {
         const bytesPerSec = results.bytesSent / duration;
-        msg += ` - ${formatThroughput(bytesPerSec)}`;
+        msg += ` - ${formatBytes(results.bytesSent)} - ${formatBytes(bytesPerSec)}/s`;
       }
       console.log(msg);
     }
@@ -322,17 +322,17 @@ function formatTime(timeSeconds) {
   }
 }
 
-function formatThroughput(bytes) {
+function formatBytes(bytes) {
   if (bytes > 1*1000*1000*1000) {
-    return (bytes / 1000 / 1000 / 1000).toFixed(2) + " GB/s";
+    return (bytes / 1000 / 1000 / 1000).toFixed(2) + " GB";
   }
   else if (bytes > 1*1000*1000) {
-    return (bytes / 1000 / 1000).toFixed(2) + " MB/s";
+    return (bytes / 1000 / 1000).toFixed(2) + " MB";
   }
   else if (bytes > 1*1000) {
-    return (bytes / 1000).toFixed(2) + " KB/s";
+    return (bytes / 1000).toFixed(2) + " KB";
   }
-  return bytes.toFixed(2) + " bytes/s";
+  return bytes.toFixed(2) + " bytes";
 }
 
 async function waitUntilReceived(stream, expectData) {
