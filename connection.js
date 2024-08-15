@@ -1,11 +1,11 @@
 import { Stream } from './stream.js';
 import {
   FRAME_TYPE_DATA, FRAME_TYPE_WNDINC, FRAME_TYPE_RST, FRAME_TYPE_GOAWAY,
-  FRAME_TYPE_MESSAGE,
+  FRAME_TYPE_MESSAGE, packFrame, unpackFrame,
 } from './frame.js';
 
 class Connection {
-  constructor(config) {
+  constructor(opt) {
 
     this._nextStreamId = 1;
     this._streams = {};
@@ -18,12 +18,18 @@ class Connection {
     this._incomingStreams = ts.readable;
     const incomingWriter = ts.writable.getWriter();
 
-    this._framer = config.framer;
-    this._framer.onError((e) => {
+    this._transport = opt.transport;
+
+    this._transport.onError((e) => {
       if (this._errorCallback) {
         this._errorCallback(e);
       }
     });
+
+    (async () => {
+      await this._transport.closed;
+      console.log("Connection closed");
+    })();
 
     const writeCallback = (streamId, data) => {
 
@@ -34,7 +40,7 @@ class Connection {
         stream.syn = false;
       }
 
-      this._framer.writeFrame({
+      this._writeFrame({
         //type: streamId === DATAGRAM_STREAM_ID ? FRAME_TYPE_MESSAGE : FRAME_TYPE_DATA,
         type: FRAME_TYPE_DATA,
         fin: false,
@@ -51,7 +57,7 @@ class Connection {
       //  throw new Error("Attempted to close datagram stream");
       //}
 
-      this._framer.writeFrame({
+      this._writeFrame({
         type: FRAME_TYPE_DATA,
         fin: true,
         syn: false,
@@ -61,7 +67,7 @@ class Connection {
     this._closeCallback = closeCallback;
 
     const windowCallback = (streamId, windowIncrease) => {
-      this._framer.writeFrame({
+      this._writeFrame({
         type: FRAME_TYPE_WNDINC,
         streamId,
         windowIncrease,
@@ -69,7 +75,9 @@ class Connection {
     };
     this._windowCallback = windowCallback;
 
-    this._framer.onFrame((frame) => {
+    this._transport.onMessage((msg) => {
+
+      const frame = unpackFrame(msg);
 
       let stream;
 
@@ -171,11 +179,15 @@ class Connection {
   //}
 
   close() {
-    this._framer.close();
+    this._transport.close();
   }
 
   onError(callback) {
     this._errorCallback = callback;
+  }
+
+  _writeFrame(frame) {
+    this._transport.send(packFrame(frame));
   }
 }
 

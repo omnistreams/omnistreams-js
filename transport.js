@@ -19,6 +19,10 @@ class WebSocketClientTransport {
     this._onMessageCallback = callback;
   };
 
+  onError(callback) {
+    this._onErrorCallback = callback;
+  }
+
   close() {
     this._ws.close();
   }
@@ -63,6 +67,8 @@ class WebSocketClientTransport {
     };
 
     ws.onerror = (evt) => {
+      this._onErrorCallback(evt);
+
       if (onConnectError) {
         onConnectError(evt);
       }

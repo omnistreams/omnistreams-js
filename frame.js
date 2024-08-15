@@ -6,100 +6,6 @@ const FRAME_TYPE_MESSAGE = 0x04;
 
 const HEADER_SIZE = 8;
 
-const STATE_WAITING_FOR_FRAME = 0;
-const STATE_RECEIVING_FRAME = 1;
-
-class Framer {
-  constructor(config) {
-    this._config = config;
-  }
-
-  async connect() {
-
-    const transport = this._config.transport;
-    this._transport = transport;
-
-    await transport.ready;
-
-    let state = STATE_WAITING_FOR_FRAME;
-    let frame;
-
-    transport.onMessage((message) => {
-
-      const evt = {
-        data: message,
-      };
-
-      switch (state) {
-        case STATE_WAITING_FOR_FRAME:
-          const frameArray = new Uint8Array(evt.data);
-          frame = unpackFrame(frameArray);
-
-          if (frame.bytesReceived < frame.length) {
-            state = STATE_RECEIVING_FRAME;
-          }
-          else {
-            delete frame.bytesReceived;
-            this.onFrameCb(frame);
-          }
-
-          break;
-        case STATE_RECEIVING_FRAME:
-          const arr = new Uint8Array(evt.data);
-          frame.data.set(arr, frame.bytesReceived);
-          // TODO: make sure we're properly handling frames split across multiple websocket messages
-          frame.bytesReceived += evt.data.length;
-
-          if (frame.data.length === frame.length) {
-            state = STATE_WAITING_FOR_FRAME;
-            delete frame.bytesReceived;
-            this.onFrameCb(frame);
-          }
-
-          break;
-      }
-    });
-
-    (async () => {
-      try {
-        await transport.closed;
-        console.log("Connection closed");
-      }
-      catch (evt) {
-        console.error(evt);
-        if (onConnectError) {
-          onConnectError(evt);
-        }
-        if (this._errorCallback) {
-          this._errorCallback(evt);
-        }
-      }
-    })();
-  }
-
-  onFrame(onFrameCb) {
-    this.onFrameCb = (frame) => {
-      //console.log("Receive frame");
-      //printFrame(frame);
-      onFrameCb(frame);
-    }
-  }
-
-  writeFrame(frame) {
-    //console.log("Send frame");
-    //printFrame(frame);
-    const buf = packFrame(frame); 
-    this._transport.send(buf);
-  }
-
-  close() {
-    this._transport.close();
-  }
-
-  onError(callback) {
-    this._errorCallback = callback;
-  }
-}
 
 function packFrame(frame) {
 
@@ -224,7 +130,6 @@ function printFrame(f) {
 }
 
 export {
-  Framer,
   packFrame,
   unpackFrame,
   printFrame,

@@ -1,7 +1,10 @@
-import { Framer, packFrame, unpackFrame, printFrame } from './frame.js';
+import { packFrame, unpackFrame, printFrame } from './frame.js';
 import { Stream } from './stream.js';
 import { Connection } from './connection.js';
 import { WebSocketClientTransport } from './transport.js';
+
+const STATE_WAITING_FOR_FRAME = 0;
+const STATE_RECEIVING_FRAME = 1;
 
 //const DATAGRAM_STREAM_ID = 0;
 
@@ -49,16 +52,87 @@ class WebTransport {
 }
 
 async function connect(config) {
-  const transport = new WebSocketClientTransport(config.uri);
+  let transport = new WebSocketClientTransport(config.uri);
   await transport.ready;
 
-  const framer = new Framer({
+  //transport = new MuxadoTransportWrapper(transport);
+
+  return new Connection({
     transport,
   });
+}
 
-  await framer.connect();
+// Since muxado is designed to work with TCP streams, which we're simulating
+// using WebSockets, frames might arrive split across multiple websocket
+// frames. This wrapper combines them together as necessary.
+class MuxadoTransportWrapper {
+  constructor(transport) {
 
-  return new Connection(Object.assign(config, { framer }));
+    this._transport = transport;
+
+    let state = STATE_WAITING_FOR_FRAME;
+    let frame;
+
+    this._transport.onMessage((message) => {
+
+      const evt = {
+        data: message,
+      };
+
+      switch (state) {
+        case STATE_WAITING_FOR_FRAME:
+          const frameArray = new Uint8Array(evt.data);
+          frame = unpackFrame(frameArray);
+
+          if (frame.bytesReceived < frame.length) {
+            state = STATE_RECEIVING_FRAME;
+          }
+          else {
+            delete frame.bytesReceived;
+            this._onMessageCallback(frameArray);
+          }
+
+          break;
+        case STATE_RECEIVING_FRAME:
+          const arr = new Uint8Array(evt.data);
+          frame.data.set(arr, frame.bytesReceived);
+          // TODO: make sure we're properly handling frames split across multiple websocket messages
+          frame.bytesReceived += evt.data.length;
+
+          if (frame.data.length === frame.length) {
+            state = STATE_WAITING_FOR_FRAME;
+            delete frame.bytesReceived;
+            this._onMessageCallback(packFrame(frame));
+          }
+
+          break;
+      }
+    });
+  }
+
+  get ready() {
+    return this._transport.ready;
+  }
+
+  get closed() {
+    return this._transport.closed;
+  }
+
+  send(msg) {
+    this._transport.send(msg);
+  }
+
+  onMessage(callback) {
+    this._onMessageCallback = callback;
+  }
+
+  onError(callback) {
+    this._errorCallback = callback;
+  }
+
+  close() {
+    this._transport.close();
+  }
 }
 
 
