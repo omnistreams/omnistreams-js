@@ -1,8 +1,10 @@
 import { Stream } from './stream.js';
 import {
   FRAME_TYPE_DATA, FRAME_TYPE_WNDINC, FRAME_TYPE_RST, FRAME_TYPE_GOAWAY,
-  FRAME_TYPE_MESSAGE, packFrame, unpackFrame,
+  FRAME_TYPE_MESSAGE, packFrame, unpackFrame, printSendFrame, printRecvFrame,
 } from './frame.js';
+
+const DEBUG = false;
 
 class Connection {
   constructor(opt) {
@@ -79,6 +81,10 @@ class Connection {
 
       const frame = unpackFrame(msg);
 
+      if (DEBUG) {
+        printRecvFrame(frame);
+      }
+
       let stream;
 
       switch (frame.type) {
@@ -114,6 +120,9 @@ class Connection {
           }
 
           if (frame.fin) {
+            if (frame.data.length > 0) {
+              stream._enqueueData(frame.data);
+            }
             stream.closeRead();
           }
 
@@ -129,7 +138,7 @@ class Connection {
           }
           break;
         case FRAME_TYPE_RST:
-          console.log("FRAME_TYPE_RST", frame, frame.data);
+          //console.log("FRAME_TYPE_RST", frame, frame.data);
 
           stream = this._streams[frame.streamId];
           if (stream) {
@@ -187,9 +196,13 @@ class Connection {
   }
 
   _writeFrame(frame) {
+    if (DEBUG) {
+      printSendFrame(frame);
+    }
     this._transport.send(packFrame(frame));
   }
 }
+
 
 export {
   Connection,

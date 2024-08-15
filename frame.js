@@ -129,10 +129,55 @@ function printFrame(f) {
   console.log("}");
 }
 
+function printSendFrame(f) {
+  const ts = String(performance.now().toFixed(3));
+  console.log(`OUT tim: ${ts} ${formatFrame(f)}`);
+}
+
+function printRecvFrame(f) {
+  const ts = String(performance.now().toFixed(3));
+  console.log(`IN  tim: ${ts} ${formatFrame(f)}`);
+}
+
+function formatFrame(f) {
+  const fin = f.fin ? 1 : 0;
+  const syn = f.syn ? 1 : 0;
+  const win = String(f.windowIncrease ? f.windowIncrease : 'nil').padStart(5);
+  let type;
+  switch (f.type) {
+    case FRAME_TYPE_DATA:
+      type = 'DAT';
+      break;
+    case FRAME_TYPE_WNDINC:
+      type = 'WND';
+      break;
+    case FRAME_TYPE_RST:
+      type = 'RST';
+      break;
+    case FRAME_TYPE_GOAWAY:
+      type = 'DIS';
+      break;
+    default:
+      type = 'Unknown type';
+      break;
+  }
+
+  let dat = 'nil';
+  let len = 'nil'.padStart(5);
+  if (f.data) {
+    dat = `[${f.data.slice(0, 4)}...${f.data.slice(-4)}]`;
+    len = String(f.data.length).padStart(5);
+  }
+
+  return `typ: ${type} sid: ${f.streamId} syn: ${syn} fin: ${fin} wnd: ${win} len: ${len} dat: ${dat}`;
+}
+
 export {
   packFrame,
   unpackFrame,
   printFrame,
+  printSendFrame,
+  printRecvFrame,
   FRAME_TYPE_RST,
   FRAME_TYPE_DATA,
   FRAME_TYPE_WNDINC,

@@ -22,32 +22,38 @@ class Stream {
 
     const stream = this;
 
-    this._readable = new ReadableStream({
-      start(controller) {
-        stream._readableController = controller;
+    this._readable = new ReadableStream(
+      {
+        start(controller) {
+          stream._readableController = controller;
+        },
+
+        pull(controller) {
+
+          if (stream._queue.length > 0) {
+            const chunk = stream._queue.shift()
+            controller.enqueue(chunk);
+            windowCallback(streamId, chunk.length);
+          }
+
+          if (stream._queue.length === 0) {
+            const promise = new Promise((resolve, reject) => {
+              stream._queueResolve = () => {
+                resolve();
+              };
+            });
+            return promise;
+          }
+        },
+
+        cancel() {
+          // TODO: should probably be doing something here...
+          //console.log("TODO: reader cancel signal", stream._streamId);
+          stream._readClosed = true;
+        }, 
       },
-
-      pull(controller) {
-
-        if (stream._queue.length === 0) {
-          const promise = new Promise((resolve, reject) => {
-            stream._queueResolve = resolve;
-          });
-          return promise;
-        }
-        else {
-          const chunk = stream._queue.shift()
-          controller.enqueue(chunk);
-          windowCallback(streamId, chunk.length);
-        }
-      },
-
-      cancel() {
-        // TODO: should probably be doing something here...
-        //console.log("TODO: reader cancel signal", stream._streamId);
-        stream._readClosed = true;
-      }
-    }); 
+      //new CountQueuingStrategy({ highWaterMark: 100 })
+    ); 
 
     this._writable = new WritableStream({
 
@@ -110,6 +116,11 @@ class Stream {
   }
 
   closeRead() {
+    // Flush queue if necessary
+    while (this._queue.length > 0) {
+      const chunk = this._queue.shift();
+      this._readableController.enqueue(chunk);
+    }
     if (!this._readClosed) {
       this._readClosed = true;
       return this._readableController.close();
