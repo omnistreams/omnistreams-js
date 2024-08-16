@@ -54,7 +54,7 @@ class WebSocketClientTransport {
         return;
       }
 
-      this._onMessageCallback(new Uint8Array(evt.data));
+      this._onMessageCallback(evt.data);
     };
 
     this._closedPromise = new Promise((resolve, reject) => {

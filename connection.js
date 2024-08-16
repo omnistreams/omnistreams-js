@@ -79,7 +79,7 @@ class Connection {
 
     this._transport.onMessage((msg) => {
 
-      const frame = unpackFrame(msg);
+      const frame = unpackFrame(new Uint8Array(msg));
 
       if (globalThis.OMNISTREAMS_DEBUG) {
         printRecvFrame(frame);
