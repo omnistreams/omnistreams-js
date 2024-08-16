@@ -4,12 +4,12 @@ import {
   FRAME_TYPE_MESSAGE, packFrame, unpackFrame, printSendFrame, printRecvFrame,
 } from './frame.js';
 
-const DEBUG = false;
+//globalThis.OMNISTREAMS_DEBUG = true;
 
 class Connection {
   constructor(opt) {
 
-    this._nextStreamId = 1;
+    this._nextStreamId = opt.isServer ? 2 : 1;
     this._streams = {};
 
     this._acceptPromise = new Promise((resolve, reject) => {
@@ -81,7 +81,7 @@ class Connection {
 
       const frame = unpackFrame(msg);
 
-      if (DEBUG) {
+      if (globalThis.OMNISTREAMS_DEBUG) {
         printRecvFrame(frame);
       }
 
@@ -196,7 +196,7 @@ class Connection {
   }
 
   _writeFrame(frame) {
-    if (DEBUG) {
+    if (globalThis.OMNISTREAMS_DEBUG) {
       printSendFrame(frame);
     }
     this._transport.send(packFrame(frame));

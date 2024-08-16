@@ -15,7 +15,7 @@ Deno.serve({ port: 3000 }, (req) => {
 
   const transport = new WebSocketServerTransport(socket);
 
-  const conn = new Connection({ transport });
+  const conn = new Connection({ transport, isServer: true });
 
   handleConn(conn);
 
@@ -31,7 +31,7 @@ async function handleConn(conn) {
 async function handleStream(conn, stream) {
   const reader = stream.readable.getReader();
   let { value, done } = await reader.read();
-  
+
   const testType = value[0];
 
   switch (testType) {
