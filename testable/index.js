@@ -50,7 +50,7 @@ async function handleStream(conn, stream) {
     case TEST_TYPE_ECHO: {
       const writer = stream.writable.getWriter();
       await writer.ready;
-      await writer.write(value.slice(1));
+      await writer.write(value);
 
       while (true) {
         const res = await reader.read();
@@ -67,7 +67,7 @@ async function handleStream(conn, stream) {
       const resStream = await conn.open();
       const writer = resStream.writable.getWriter();
       await writer.ready;
-      await writer.write(value.slice(1));
+      await writer.write(value);
 
       while (true) {
         const res = await reader.read();

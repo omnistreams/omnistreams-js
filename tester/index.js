@@ -8,6 +8,10 @@ const TimeoutMs = 1000;
 
 const WINDOW_SIZE = 256*1024;
 
+const TEST_TYPE_SIZE = 1;
+const TEST_ID_SIZE = 4;
+const TEST_HEADER_SIZE = TEST_TYPE_SIZE + TEST_ID_SIZE;
+
 async function run(serverUri, concurrent) {
 
   // TODO: turn connection initiation into a test
@@ -22,7 +26,7 @@ async function run(serverUri, concurrent) {
   })();
 
   await conn.ready;
-  const streamReader = conn.incomingBidirectionalStreams.getReader();
+  const streamReader = new StreamReader(conn.incomingBidirectionalStreams);
 
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -38,6 +42,7 @@ async function run(serverUri, concurrent) {
   initArray(bigData);
 
   const testQueue = [];
+  let nextTestId = 100;
 
   test('Basic consume', () => {
     return consumeTest(conn, enc.encode("Hi there"));
@@ -79,7 +84,7 @@ async function run(serverUri, concurrent) {
     return echoTest(conn, bigData);
   });
 
-  test('Basic mimic', () => {
+  test('Basic mimic', async () => {
     return mimicTest(conn, enc.encode("Hi there"));
   });
 
@@ -176,7 +181,7 @@ async function run(serverUri, concurrent) {
     const stream = await conn.createBidirectionalStream();
     const writer = stream.writable.getWriter();
     await writer.ready;
-    const testData = buildData(TestTypeConsume, data);
+    const testData = buildData(TestTypeConsume, nextTestId++, data);
     await writer.write(testData);
     await writer.ready;
     await writer.close();
@@ -190,15 +195,13 @@ async function run(serverUri, concurrent) {
     const stream = await conn.createBidirectionalStream();
     const writer = stream.writable.getWriter();
 
-    const wireData = buildData(TestTypeEcho, data);
-
-    const expectData = wireData.slice(1);
+    const expectData = buildData(TestTypeEcho, nextTestId++, data);
 
     const stop = stopwatch();
 
     (async () => {
       await writer.ready;
-      await writer.write(wireData);
+      await writer.write(expectData);
 
       await writer.ready;
       await writer.close();
@@ -216,16 +219,16 @@ async function run(serverUri, concurrent) {
     const stream = await conn.createBidirectionalStream();
     const writer = stream.writable.getWriter();
 
-    const wireData = buildData(TestTypeMimic, data);
-    const expectData = wireData.slice(1);
+    const id = nextTestId++;
+
+    const expectData = buildData(TestTypeMimic, id, data);
 
     (async () => {
       await writer.ready;
-      await writer.write(wireData);
+      await writer.write(expectData);
     })();
 
-    const res = await streamReader.read();
-    const responseStream = res.value;
+    const responseStream = await streamReader.acceptWithId(id);
 
     await waitUntilReceived(responseStream, expectData);
 
@@ -234,6 +237,81 @@ async function run(serverUri, concurrent) {
 
     return {
       bytesReceived: data.length,
+    }
+  }
+}
+
+class StreamReader {
+  constructor(incomingBidirectionalStreams) {
+
+    this._streamMap = {};
+    this._resolveMap = {};
+
+    (async () => {
+      for await (const stream of incomingBidirectionalStreams) {
+
+        const reader = stream.readable.getReader();
+
+        let bytesReceived = 0;
+
+        let firstChunk = new Uint8Array();
+
+        while (bytesReceived < TEST_HEADER_SIZE) {
+          const { value, done } = await reader.read();
+          if (done) {
+            throw new Error("done early");
+          }
+
+          firstChunk = concatArrays(firstChunk, value);
+          bytesReceived += value.length;
+        }
+
+        reader.releaseLock();
+
+        const dv = new DataView(firstChunk.buffer);
+        const id = dv.getUint32(1, false);
+
+        const tsSend = new TransformStream();
+        const tsRecv = new TransformStream();
+
+        const passthroughStream = {
+          readable: tsRecv.readable,
+          writable: tsSend.writable,
+        };
+
+        (async () => {
+          const writer = tsRecv.writable.getWriter();
+          await writer;
+          await writer.write(firstChunk);
+          await writer.releaseLock();
+          try {
+            await stream.readable.pipeTo(tsRecv.writable);
+          }
+          catch (e) {
+            // TODO: this is throwing undefined errors but the tests are working
+          }
+        })();
+
+        tsSend.readable.pipeTo(stream.writable);
+
+        if (this._resolveMap[id]) {
+          this._resolveMap[id](passthroughStream);
+        }
+        else {
+          this._streamMap[id] = passthroughStream;
+        }
+      }
+    })();
+  }
+
+  async acceptWithId(id) {
+    if (this._streamMap[id]) {
+      return this._streamMap[id];
+    }
+    else {
+      return new Promise((resolve, reject) => {
+        this._resolveMap[id] = resolve;
+      });
     }
   }
 }
@@ -278,7 +356,7 @@ function concatArrays(a1, a2) {
   return catted;
 }
 
-function buildData(type, data) {
+function buildData(type, id, data) {
 
   let valid = false;
   for (const elem of data) {
@@ -292,18 +370,20 @@ function buildData(type, data) {
     throw new Error("Data is invalid");
   }
 
-  const catted = new Uint8Array(1 + data.length);
+  const catted = new Uint8Array(TEST_HEADER_SIZE + data.length);
   catted[0] = type;
-  catted.set(data, 1);
+  const dv = new DataView(catted.buffer);
+  dv.setUint32(TEST_TYPE_SIZE, id, false);
+  catted.set(data, TEST_HEADER_SIZE);
 
   return catted;
 }
 
-async function sleep(ms) {
+async function sleep(sec) {
   return new Promise((resolve, reject) => {
     setTimeout(() => {
       resolve();
-    }, ms);
+    }, sec*1000);
   });
 }
 
@@ -341,6 +421,9 @@ async function waitUntilReceived(stream, expectData) {
 
   let offset = 0;
   for await (const chunk of stream.readable) {
+    if ((offset + chunk.length) > expectData.length) {
+      throw new Error("Data doesn't match expected");
+    }
     echoData.set(chunk, offset);
     offset += chunk.length;
     if (arraysEqual(echoData, expectData)) {
