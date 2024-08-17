@@ -12,10 +12,18 @@ const TEST_TYPE_SIZE = 1;
 const TEST_ID_SIZE = 4;
 const TEST_HEADER_SIZE = TEST_TYPE_SIZE + TEST_ID_SIZE;
 
-async function run(serverUri, concurrent) {
+async function run(serverUri, concurrent, useWebTransport) {
 
+  let conn;
   // TODO: turn connection initiation into a test
-  const conn = new omnistreams.WebTransport(serverUri);
+  if (useWebTransport) {
+    console.log("Initiating WebTransport test");
+    conn = new WebTransport(serverUri);
+  }
+  else {
+    console.log("Initiating omnistreams test");
+    conn = new omnistreams.WebTransport(serverUri);
+  }
   (async () => {
     try {
       await conn.closed;

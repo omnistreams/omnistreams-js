@@ -17,6 +17,10 @@
         <input id='concurrent-flag-input' type='checkbox' name='concurrent-flag' />
       </div>
       <div>
+        <label for='webtransport-flag-input'>Use WebTransport:</label>
+        <input id='webtransport-flag-input' type='checkbox' name='webtransport-flag' />
+      </div>
+      <div>
         <button id='run-button' type='submit'>Run Tests</button>
       </div>
     </form>
@@ -26,19 +30,27 @@
 
       const serverUriInput = document.querySelector('#server-uri-input');
       const concurrentInput = document.querySelector('#concurrent-flag-input');
+      const useWtInput = document.querySelector('#webtransport-flag-input');
 
-      const serverUriParam = new URLSearchParams(location.search).get('server-uri');
+      const params = new URLSearchParams(location.search);
+
+      const serverUriParam = params.get('server-uri');
       if (serverUriParam) {
         serverUriInput.value = serverUriParam;
+      }
+
+      const useWtParam = params.get('use-webtransport') === 'true';
+      if (useWtParam) {
+        useWtInput.checked = true;
       }
 
       const runBtn = document.querySelector('#run-button');
       runBtn.addEventListener('click', (evt) => {
         evt.preventDefault();
-        run(serverUriInput.value, concurrentInput.checked);
+        run(serverUriInput.value, concurrentInput.checked, useWtInput.checked);
       });
 
-      run(serverUriInput.value, concurrentInput.checked);
+      run(serverUriInput.value, concurrentInput.checked, useWtInput.checked);
 
     </script>
   </body>
