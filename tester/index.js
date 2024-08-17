@@ -124,6 +124,8 @@ async function run(serverUri, concurrent, useWebTransport) {
   console.log(`Ran in ${formatTime(stop())}`);
 
   // TODO: turn close() into a test
+  // TODO: This is currently throwing an (uncatchable apparently) exception
+  // when using WebTransport
   await conn.close();
 
   async function test(description, callback) {
