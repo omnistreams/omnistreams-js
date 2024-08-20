@@ -1,8 +1,9 @@
 import omnistreams from '../index.js';
 
-const TestTypeConsume = 0;
-const TestTypeEcho = 1;
-const TestTypeMimic = 2;
+const TEST_TYPE_CONSUME = 0;
+const TEST_TYPE_ECHO = 1;
+const TEST_TYPE_MIMIC = 2;
+const TEST_TYPE_SEND = 4;
 
 const TimeoutMs = 1000;
 
@@ -50,7 +51,7 @@ async function run(serverUri, concurrent, useWebTransport) {
   initArray(bigData);
 
   const testQueue = [];
-  let nextTestId = 100;
+  let nextTestId = 100; 
 
   test('Basic consume', () => {
     return consumeTest(conn, enc.encode("Hi there"));
@@ -112,6 +113,19 @@ async function run(serverUri, concurrent, useWebTransport) {
     return mimicTest(conn, bigData);
   });
 
+  test('Receive throughput', async () => {
+    return receiveTest(conn, bigData, 100);
+  }, { timeoutMs: 10000 });
+
+  test('Send throughput', async () => {
+    return sendTest(conn, 1*1024*1024*1024);
+  }, { timeoutMs: 10000 });
+
+  test('Echo throughput', async () => {
+    return sendReceiveTest(conn, bigData, 100);
+  }, { timeoutMs: 10000 });
+
+
   const stop = stopwatch();
 
   if (concurrent) {
@@ -128,8 +142,8 @@ async function run(serverUri, concurrent, useWebTransport) {
   // when using WebTransport
   await conn.close();
 
-  async function test(description, callback) {
-    testQueue.push({ description, callback });
+  async function test(description, callback, opt) {
+    testQueue.push(Object.assign({ description, callback }, opt));
   }
 
   async function runTests() {
@@ -148,11 +162,13 @@ async function run(serverUri, concurrent, useWebTransport) {
 
   async function runTest(test) {
 
+    const timeoutMs = test.timeoutMs ? test.timeoutMs : TimeoutMs;
+
     let timeoutId;
     const timeoutPromise = new Promise((resolve, reject) => {
       timeoutId = setTimeout(() => {
         reject(new Error("Timeout"));
-      }, TimeoutMs);
+      }, timeoutMs);
     });
 
     const stop = stopwatch();
@@ -191,7 +207,7 @@ async function run(serverUri, concurrent, useWebTransport) {
     const stream = await conn.createBidirectionalStream();
     const writer = stream.writable.getWriter();
     await writer.ready;
-    const testData = buildData(TestTypeConsume, nextTestId++, data);
+    const testData = buildData(TEST_TYPE_CONSUME, nextTestId++, data);
     await writer.write(testData);
     await writer.ready;
     await writer.close();
@@ -205,7 +221,7 @@ async function run(serverUri, concurrent, useWebTransport) {
     const stream = await conn.createBidirectionalStream();
     const writer = stream.writable.getWriter();
 
-    const expectData = buildData(TestTypeEcho, nextTestId++, data);
+    const expectData = buildData(TEST_TYPE_ECHO, nextTestId++, data);
 
     const stop = stopwatch();
 
@@ -231,7 +247,7 @@ async function run(serverUri, concurrent, useWebTransport) {
 
     const id = nextTestId++;
 
-    const expectData = buildData(TestTypeMimic, id, data);
+    const expectData = buildData(TEST_TYPE_MIMIC, id, data);
 
     (async () => {
       await writer.ready;
@@ -247,6 +263,106 @@ async function run(serverUri, concurrent, useWebTransport) {
 
     return {
       bytesReceived: data.length,
+    }
+  }
+
+  async function receiveTest(conn, bigData, numChunks) {
+
+    const stream = await conn.createBidirectionalStream();
+    const writer = stream.writable.getWriter();
+
+    const header = buildData(TEST_TYPE_CONSUME, nextTestId++, []);
+
+    const size = header.length + (bigData.length*numChunks);
+
+    let sendSize = 0;
+
+    await writer.ready;
+    await writer.write(header);
+    sendSize += header.length;
+
+    for (let i = 0; i < numChunks; i++) {
+      await writer.ready;
+      await writer.write(bigData);
+      sendSize += bigData.length;
+    }
+
+    await writer.ready;
+    await writer.close();
+
+    return {
+      bytesSent: sendSize,
+    }
+  }
+
+  async function sendTest(conn, size) {
+
+    const stream = await conn.createBidirectionalStream();
+    const writer = stream.writable.getWriter();
+
+    const sizeBuf = new Uint8Array(4);
+    const dv = new DataView(sizeBuf.buffer);
+    dv.setUint32(0, size, false);
+
+    const header = buildData(TEST_TYPE_SEND, nextTestId++, []);
+    const req = concatArrays(header, sizeBuf);
+
+    await writer.ready;
+    await writer.write(req);
+
+    let recvSize = 0;
+    for await (const chunk of stream.readable) {
+      recvSize += chunk.length;
+      if (recvSize === size) {
+        break;
+      }
+    }
+
+    return {
+      bytesSent: 0,
+      bytesReceived: recvSize,
+    }
+  }
+
+  async function sendReceiveTest(conn, bigData, numChunks) {
+
+    const stream = await conn.createBidirectionalStream();
+    const writer = stream.writable.getWriter();
+
+    const header = buildData(TEST_TYPE_ECHO, nextTestId++, []);
+
+    const size = header.length + (bigData.length*numChunks);
+
+    let sendSize = 0;
+    let recvSize = 0;
+
+    (async () => {
+
+      await writer.ready;
+      await writer.write(header);
+      sendSize += header.length;
+
+      for (let i = 0; i < numChunks; i++) {
+        await writer.ready;
+        await writer.write(bigData);
+        sendSize += bigData.length;
+      }
+
+      await writer.ready;
+      await writer.close();
+
+    })();
+
+    for await (const chunk of stream.readable) {
+      recvSize += chunk.length;
+      if (recvSize === size) {
+        break;
+      }
+    }
+
+    return {
+      bytesSent: sendSize,
+      bytesReceived: recvSize,
     }
   }
 }
@@ -368,16 +484,18 @@ function concatArrays(a1, a2) {
 
 function buildData(type, id, data) {
 
-  let valid = false;
-  for (const elem of data) {
-    if (elem !== 0) {
-      valid = true;
-      break;
+  if (data.length > 0) {
+    let valid = false;
+    for (const elem of data) {
+      if (elem !== 0) {
+        valid = true;
+        break;
+      }
     }
-  }
 
-  if (!valid) {
-    throw new Error("Data is invalid");
+    if (!valid) {
+      throw new Error("Data is invalid");
+    }
   }
 
   const catted = new Uint8Array(TEST_HEADER_SIZE + data.length);
@@ -443,5 +561,11 @@ async function waitUntilReceived(stream, expectData) {
 }
 
 export {
+  TEST_TYPE_SIZE,
+  TEST_ID_SIZE,
+  TEST_TYPE_CONSUME,
+  TEST_TYPE_ECHO,
+  TEST_TYPE_MIMIC,
+  TEST_TYPE_SEND,
   run,
 };

@@ -1,3 +1,5 @@
+//import { WebSocket } from 'ws';
+
 class WebSocketClientTransport {
   constructor(uri) {
     this._connect(uri); 
@@ -32,6 +34,8 @@ class WebSocketClientTransport {
     const scheme = parsedUri.protocol === 'https:' ? 'wss://' : 'ws://';
     const wsUri = `${scheme}${parsedUri.host}${parsedUri.pathname}${parsedUri.search}`;
     const ws = new WebSocket(wsUri); 
+    // Only works with the 'ws' package
+    //const ws = new WebSocket('ws+unix:///tmp/omnistreams.socket'); 
 
     ws.binaryType = 'arraybuffer';
 
@@ -67,6 +71,7 @@ class WebSocketClientTransport {
     };
 
     ws.onerror = (evt) => {
+      console.error(evt);
       this._onErrorCallback(evt);
 
       if (onConnectError) {
