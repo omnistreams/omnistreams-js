@@ -3,7 +3,7 @@ import omnistreams from '../index.js';
 const TEST_TYPE_CONSUME = 0;
 const TEST_TYPE_ECHO = 1;
 const TEST_TYPE_MIMIC = 2;
-const TEST_TYPE_SEND = 4;
+const TEST_TYPE_SEND = 3;
 
 const TimeoutMs = 1000;
 
