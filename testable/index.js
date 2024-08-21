@@ -1,5 +1,5 @@
 import { Connection } from '../connection.js';
-import { isNode } from '../runtime.js';
+import { detectRuntime, RUNTIME_NODE, RUNTIME_DENO, RUNTIME_BUN } from '../runtime.js';
 import { printSendFrame, printRecvFrame } from '../frame.js';
 import {
   TEST_TYPE_SIZE, TEST_ID_SIZE, TEST_TYPE_CONSUME, TEST_TYPE_ECHO,
@@ -8,7 +8,11 @@ import {
 
 const PORT = 3000;
 
-if (isNode()) {
+const runtime = detectRuntime();
+
+if (runtime === RUNTIME_NODE) {
+
+  console.log("node");
 
   const { WebSocketServer } = await import('ws');
   const http = await import('http');
@@ -21,7 +25,6 @@ if (isNode()) {
   const wss = new WebSocketServer({ server });
 
   wss.on('connection', (ws) => {
-    console.log("ws");
     const transport = new WebSocketServerTransport(ws);
     const conn = new Connection({ transport, isServer: true });
     handleConn(conn);
@@ -31,7 +34,10 @@ if (isNode()) {
   //server.listen('/tmp/omnistreams.socket');
 
 }
-else {
+else if (runtime === RUNTIME_DENO) {
+
+  console.log("deno");
+
   Deno.serve({ port: PORT }, (req) => {
 
     if (req.headers.get("upgrade") != "websocket") {
@@ -47,6 +53,43 @@ else {
     handleConn(conn);
 
     return response;
+  });
+}
+else if (runtime === RUNTIME_BUN) {
+  console.log("bun");
+
+  const transports = {};
+
+  Bun.serve({
+    fetch(req, server) {
+      if (server.upgrade(req)) {
+        return;
+      }
+      return new Response("Upgrade failed", { status: 500 });
+    },
+    websocket: {
+      open(ws) {
+
+        const sendFunc = (msg) => {
+          ws.send(msg);
+        };
+
+        const transport = new BunWebSocketServerTransport(sendFunc);
+        transports[ws] = transport;
+
+        const conn = new Connection({ transport, isServer: true });
+
+        handleConn(conn);
+      },
+      message(ws, message) {
+        const t = transports[ws];
+        t.passMessage(message);
+      },
+      error(ws, error) {
+        const t = transports[ws];
+        t.passError(error);
+      },
+    },
   });
 }
 
@@ -141,6 +184,32 @@ async function handleStream(conn, stream) {
     default:
       console.error("Unknown test type", testType);
       break;
+  }
+}
+
+class BunWebSocketServerTransport {
+  constructor(sendFunc) {
+    this._sendFunc = sendFunc;
+  }
+
+  passMessage(msg) {
+    this._onMessageCallback(msg)
+  }
+
+  passError(err) {
+    this._onErrorCallback(err)
+  }
+
+  send(msg) {
+    this._sendFunc(msg);
+  }
+
+  onMessage(callback) {
+    this._onMessageCallback = callback;
+  };
+
+  onError(callback) {
+    this._onErrorCallback = callback;
   }
 }
 

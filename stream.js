@@ -1,4 +1,6 @@
 const DEFAULT_WINDOW_SIZE = 256*1024;
+//const DEFAULT_WINDOW_SIZE = 512*1024;
+//const DEFAULT_WINDOW_SIZE = 6*1024*1024;
 // TODO: Firefox and Deno both fail to notice if the chunk size is too big.
 // The server side throws an error and closes the connection but the clients
 // exit without any exceptions.

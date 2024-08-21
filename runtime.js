@@ -25,4 +25,8 @@ function isNode() {
 
 export {
   isNode,
+  detectRuntime,
+  RUNTIME_NODE,
+  RUNTIME_DENO,
+  RUNTIME_BUN,
 };

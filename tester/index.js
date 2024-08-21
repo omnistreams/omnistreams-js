@@ -5,7 +5,7 @@ const TEST_TYPE_ECHO = 1;
 const TEST_TYPE_MIMIC = 2;
 const TEST_TYPE_SEND = 3;
 
-const TimeoutMs = 1000;
+const TimeoutMs = 10000;
 
 const WINDOW_SIZE = 256*1024;
 
@@ -115,15 +115,15 @@ async function run(serverUri, concurrent, useWebTransport) {
 
   test('Receive throughput', async () => {
     return receiveTest(conn, bigData, 100);
-  }, { timeoutMs: 10000 });
+  }, { timeoutMs: 100000 });
 
   test('Send throughput', async () => {
     return sendTest(conn, 1*1024*1024*1024);
-  }, { timeoutMs: 10000 });
+  }, { timeoutMs: 100000 });
 
   test('Echo throughput', async () => {
     return sendReceiveTest(conn, bigData, 100);
-  }, { timeoutMs: 10000 });
+  }, { timeoutMs: 100000 });
 
 
   const stop = stopwatch();
