@@ -7,14 +7,14 @@ const runtime = detectRuntime();
 
 function detectRuntime() {
   let runtime = RUNTIME_BROWSER;
-  if (typeof process !== 'undefined' && process.versions.bun !== undefined) {
+  if (globalThis.Deno !== undefined) {
+    runtime = RUNTIME_DENO;
+  }
+  else if (typeof process !== 'undefined' && process.versions.bun !== undefined) {
     runtime = RUNTIME_BUN;
   }
   else if (isNode()) {
     runtime = RUNTIME_NODE;
-  }
-  else if (window.Deno !== undefined) {
-    runtime = RUNTIME_DENO;
   }
   return runtime;
 }
