@@ -118,7 +118,7 @@ async function run(serverUri, concurrent, useWebTransport) {
   }, { timeoutMs: 100000 });
 
   test('Send throughput', async () => {
-    return sendTest(conn, 1*1024*1024*1024);
+    return sendTest(conn, bigData.length * 100);
   }, { timeoutMs: 100000 });
 
   test('Echo throughput', async () => {
