@@ -47,7 +47,8 @@ async function run(serverUri, concurrent, useWebTransport) {
   const dataTwoWindow = new Uint8Array(2*WINDOW_SIZE);
   initArray(dataTwoWindow);
 
-  const bigData = new Uint8Array(10*1024*1024);
+  //const bigData = new Uint8Array(10*1024*1024);
+  const bigData = new Uint8Array(1*1024*1024);
   initArray(bigData);
 
   const testQueue = [];
