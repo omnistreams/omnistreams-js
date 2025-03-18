@@ -1,5 +1,6 @@
 const DEFAULT_WINDOW_SIZE = 256*1024;
 //const DEFAULT_WINDOW_SIZE = 512*1024;
+//const DEFAULT_WINDOW_SIZE = 831*1024;
 //const DEFAULT_WINDOW_SIZE = 6*1024*1024;
 // TODO: Firefox and Deno both fail to notice if the chunk size is too big.
 // The server side throws an error and closes the connection but the clients
@@ -74,6 +75,7 @@ class Stream {
           for (let i = 0; i < numChunks; i++) {
             const offset = i*MAX_CHUNK_SIZE;
             const subchunk = chunk.slice(offset, offset+MAX_CHUNK_SIZE);
+            // TODO: will awaiting in a loop like this potentially cause problems?
             await stream._attemptSend(subchunk);
           }
         }
